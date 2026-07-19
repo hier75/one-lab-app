@@ -245,6 +245,20 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .ring-macro .tgt{font-size:8px;color:var(--text-3);margin-top:1px}
 .macro-ring-cell .lab{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);font-weight:600;text-align:center}
 
+/* ---------- Panneau + : recherche & scanner ---------- */
+.backrow{margin-bottom:12px}
+.backbtn{background:none;border:none;color:var(--accent-ink);font-size:13.5px;font-weight:600;padding:4px 0;cursor:pointer}
+.foodResultRow{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--hairline)}
+.foodResultRow:last-child{border-bottom:none}
+.foodResultRow .frt{flex:1;min-width:0}
+.foodResultRow .frt b{font-size:14px;font-weight:600;display:block}
+.foodResultRow .frt span{font-size:11.5px;color:var(--text-3)}
+.foodTag{font-size:8px;font-weight:700;border:1px solid var(--card-border);border-radius:6px;
+  padding:1px 5px;color:var(--text-3);text-transform:uppercase;margin-left:5px;vertical-align:middle}
+.frAdd{font-size:13px;font-weight:700;color:var(--accent-ink);background:none;border:none;cursor:pointer;flex-shrink:0}
+#scanReader video{width:100%!important;border-radius:16px}
+#scanReader{min-height:220px}
+
 /* ---------- Inputs & bibliothèque (Sport perso / recherche aliments) ---------- */
 .finput{width:100%;box-sizing:border-box;padding:11px 13px;border-radius:14px;font-size:14px;
   border:1px solid var(--card-border);background:var(--card-2);color:var(--text-1);outline:none}
@@ -541,12 +555,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
         <div class="macro-rings" id="macros"></div>
       </div>
 
-      <div class="section-title"><h2>Ajouter un aliment</h2><span style="font-size:12px;color:var(--text-3)">Base + Open Food Facts</span></div>
-      <div class="card">
-        <input class="finput" id="foodSearch" placeholder="Rechercher parmi 3 240 aliments (ex. poulet, riz…)" autocomplete="off">
-        <div id="foodResults"></div>
-      </div>
-
       <div class="section-title"><h2>Repas</h2><span style="font-size:12px;color:var(--text-3)">Estimations modifiables</span></div>
       <div class="card"><div id="mealList"></div></div>
       <p class="foot">Aperçu · données de démonstration</p>
@@ -650,11 +658,33 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 <div class="sheet" id="sheetAdd" role="dialog" aria-label="Ajouter un aliment">
   <div class="grab"></div>
-  <h3>Ajouter au journal</h3>
-  <p class="sub">Trois façons, un seul journal. Toute estimation reste modifiable.</p>
-  <button class="opt" data-add="search"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></span><span class="ot"><b>Rechercher</b><span>Par nom · base Open Food Facts</span></span></button>
-  <button class="opt" data-add="barcode"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14"/></svg></span><span class="ot"><b>Scanner un code-barre</b><span>Lecture instantanée</span></span></button>
-  <button class="opt" data-add="photo"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg></span><span class="ot"><b>Estimer par photo</b><span>IA de vision · <span style="color:var(--accent-ink);font-weight:600">Bêta</span></span></span></button>
+
+  <div id="addOptions">
+    <h3>Ajouter au journal</h3>
+    <p class="sub">Ciqual (référence) + Open Food Facts en direct, plusieurs millions de produits.</p>
+    <button class="opt" data-add="search"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></span><span class="ot"><b>Rechercher</b><span>Par nom · Ciqual + Open Food Facts</span></span></button>
+    <button class="opt" data-add="barcode"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14"/></svg></span><span class="ot"><b>Scanner un code-barre</b><span>Caméra ou saisie manuelle</span></span></button>
+    <button class="opt" data-add="photo"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg></span><span class="ot"><b>Estimer par photo</b><span>IA de vision · <span style="color:var(--text-3);font-weight:600">bientôt disponible</span></span></span></button>
+  </div>
+
+  <div id="addSearchView" style="display:none">
+    <div class="backrow"><button class="backbtn" id="searchBackBtn">← Retour</button></div>
+    <input class="finput" id="sheetFoodSearch" placeholder="ex. poulet, skyr, Danone…" autocomplete="off">
+    <div id="sheetFoodResults" style="margin-top:8px;max-height:360px;overflow-y:auto"></div>
+  </div>
+
+  <div id="addBarcodeView" style="display:none">
+    <div class="backrow"><button class="backbtn" id="barcodeBackBtn">← Retour</button></div>
+    <div id="scanWrap" style="border-radius:16px;overflow:hidden;background:#000;min-height:220px;position:relative">
+      <div id="scanReader" style="width:100%"></div>
+    </div>
+    <div id="scanStatus" style="font-size:12px;color:var(--text-3);margin-top:8px;text-align:center"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <input class="finput" id="manualBarcode" placeholder="Ou saisis le code-barre (ex. 3017624010701)" inputmode="numeric" style="flex:1">
+      <button class="tbtn primary" id="manualBarcodeGo" style="flex-shrink:0">Chercher</button>
+    </div>
+    <div id="barcodeResult" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <div class="sheet" id="sheetCoach" role="dialog" aria-label="Coach">
@@ -666,6 +696,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   /* ============================================================
@@ -1098,15 +1129,15 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
   /* ---------- Nutrition : VRAI branchement base (nutrition_foods / entries / goals) ---------- */
   var searchTimer=null;
-  function renderFoodSearch(){
+  function renderFoodSearch(inputId,resultsId){
     clearTimeout(searchTimer);
-    searchTimer=setTimeout(doFoodSearch,250);
+    searchTimer=setTimeout(function(){ doFoodSearch(inputId,resultsId); },250);
   }
-  async function doFoodSearch(){
-    var q=($("#foodSearch").value||"").trim(), c=$("#foodResults"); c.innerHTML="";
+  async function doFoodSearch(inputId,resultsId){
+    var q=($("#"+inputId).value||"").trim(), c=$("#"+resultsId); c.innerHTML="";
     if(q.length<2) return;
-    if(!sb){c.appendChild(el("div","libRow",'<div class="lt"><span>Connexion base indisponible (CDN bloqué).</span></div>'));return;}
-    c.appendChild(el("div","libRow",'<div class="lt"><span>Recherche…</span></div>'));
+    if(!sb){c.appendChild(el("div","foodResultRow",'<div class="frt"><span>Connexion base indisponible (CDN bloqué).</span></div>'));return;}
+    c.appendChild(el("div","foodResultRow",'<div class="frt"><span>Recherche…</span></div>'));
 
     // Deux sources en parallèle : la base locale (Ciqual + déjà scannés + perso,
     // quelques ms) et Open Food Facts en direct (des millions de produits du
@@ -1121,7 +1152,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
     c.innerHTML="";
     if(!local.length && !remote.length){
-      c.appendChild(el("div","libRow",'<div class="lt"><span>Aucun résultat pour « '+q+' ».</span></div>'));
+      c.appendChild(el("div","foodResultRow",'<div class="frt"><span>Aucun résultat pour « '+q+' ».</span></div>'));
       return;
     }
 
@@ -1136,16 +1167,15 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       var portion=f.serving_g||100;
       var tag = f.source==="ciqual" ? "Ciqual" : f.source==="openfoodfacts" ? "Commerce" : f.source==="user" ? "Perso" : "Référence";
       var meta=(f.brand?f.brand+' · ':'')+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
-      var e=el("div","libRow",
-        '<div class="lt"><b>'+f.name+' <span style="font-size:8.5px;font-weight:700;border:1px solid var(--card-border);'+
-        'border-radius:6px;padding:1px 5px;color:var(--text-3);text-transform:uppercase;vertical-align:middle">'+tag+'</span></b>'+
-        '<span>'+meta+'</span></div><button class="ladd">+ '+portion+' g</button>');
-      e.querySelector(".ladd").addEventListener("click",function(){addRealFood(f,portion);});
+      var e=el("div","foodResultRow",
+        '<div class="frt"><b>'+f.name+'<span class="foodTag">'+tag+'</span></b>'+
+        '<span>'+meta+'</span></div><button class="frAdd">+ '+portion+' g</button>');
+      e.querySelector(".frAdd").addEventListener("click",function(){addRealFood(f,portion,resultsId,inputId);});
       c.appendChild(e);
     });
-    c.appendChild(el("div","libRow",'<div class="lt"><span style="font-size:10.5px;color:var(--text-3)">Ciqual (Anses) pour les aliments génériques · Open Food Facts pour les produits du commerce, recherché en direct parmi plusieurs millions de fiches</span></div>'));
+    c.appendChild(el("div","foodResultRow",'<div class="frt"><span style="font-size:10.5px;color:var(--text-3)">Ciqual (Anses) pour les aliments génériques · Open Food Facts pour les produits du commerce, recherché en direct parmi plusieurs millions de fiches</span></div>'));
   }
-  async function addRealFood(f,portion){
+  async function addRealFood(f,portion,resultsId,inputId){
     var r=portion/100;
     if(AUTH.ready){
       var foodId=f.id;
@@ -1168,9 +1198,11 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
         fat_g:Math.round(f.fat_100g*r*10)/10, fiber_g:Math.round(f.fiber_100g*r*10)/10,
         is_estimate:false, food_id:foodId});
       if(ins.error){toast("Erreur d'enregistrement : "+ins.error.message);return;}
-      $("#foodSearch").value="";$("#foodResults").innerHTML="";
+      if(inputId) $("#"+inputId).value="";
+      if(resultsId) $("#"+resultsId).innerHTML="";
       await loadTodayNutrition();
       toast("Enregistré dans ta base — journal recalculé");
+      closeSheet();
     }else{
       // Lecture seule (auth anonyme non activée) : mise à jour locale, clairement signalée.
       DATA.meals.push({n:f.name,s:"Base · "+portion+" g",k:String(Math.round(f.kcal_100g*r)),e:false,ic:"🥗"}); renderMeals();
@@ -1180,9 +1212,73 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       DATA.macros[2].v=Math.round((DATA.macros[2].v+f.fat_100g*r)*10)/10;
       DATA.macros[3].v=Math.round((DATA.macros[3].v+f.fiber_100g*r)*10)/10;
       renderKcalRing(); animateMacroRings();
-      $("#foodSearch").value="";$("#foodResults").innerHTML="";
+      if(inputId) $("#"+inputId).value="";
+      if(resultsId) $("#"+resultsId).innerHTML="";
       toast("Ajouté localement — active la sync pour enregistrer");
+      closeSheet();
     }
+  }
+
+  /* ---------- Panneau + : bascule entre options / recherche / scanner ---------- */
+  var qrScanner=null, scannerRunning=false;
+  function showAddView(view){
+    $("#addOptions").style.display = view==="options" ? "" : "none";
+    $("#addSearchView").style.display = view==="search" ? "" : "none";
+    $("#addBarcodeView").style.display = view==="barcode" ? "" : "none";
+    if(view!=="barcode") stopScanner();
+    if(view==="search") setTimeout(function(){ $("#sheetFoodSearch").focus(); },150);
+  }
+  function startScanner(){
+    if(scannerRunning || typeof Html5Qrcode==="undefined") return;
+    $("#scanStatus").textContent="Ouverture de la caméra…";
+    qrScanner = new Html5Qrcode("scanReader");
+    var formats = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+                   Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E];
+    qrScanner.start(
+      {facingMode:"environment"},
+      {fps:10, qrbox:{width:260,height:140}, formatsToSupport:formats},
+      function(decoded){ onBarcodeDetected(decoded); },
+      function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
+    ).then(function(){
+      scannerRunning=true;
+      $("#scanStatus").textContent="Vise le code-barre du produit.";
+    }).catch(function(err){
+      $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
+    });
+  }
+  function stopScanner(){
+    if(qrScanner && scannerRunning){
+      qrScanner.stop().catch(function(){}).finally(function(){ qrScanner=null; scannerRunning=false; });
+    } else { qrScanner=null; scannerRunning=false; }
+  }
+  var lastScanned=null;
+  async function onBarcodeDetected(code){
+    if(code===lastScanned) return; // évite les doublons pendant que la caméra continue de filmer
+    lastScanned=code;
+    $("#manualBarcode").value=code;
+    await lookupBarcodeAndShow(code);
+  }
+  async function lookupBarcodeAndShow(code){
+    var box=$("#barcodeResult");
+    box.innerHTML="";
+    box.appendChild(el("div","foodResultRow",'<div class="frt"><span>Recherche du produit '+code+'…</span></div>'));
+    if(!sb){ box.innerHTML=""; box.appendChild(el("div","foodResultRow",'<div class="frt"><span>Connexion base indisponible.</span></div>')); return; }
+    var res=await sb.functions.invoke("food-lookup?barcode="+encodeURIComponent(code), {method:"GET"});
+    box.innerHTML="";
+    if(res.error || !res.data || !res.data.food){
+      var msg = (res.data && res.data.error) ? res.data.error : "Produit introuvable dans Open Food Facts pour ce code.";
+      box.appendChild(el("div","foodResultRow",'<div class="frt"><span>'+msg+'</span></div>'));
+      lastScanned=null;
+      return;
+    }
+    var f=res.data.food, portion=f.serving_g||100;
+    var meta=(f.brand?f.brand+' · ':'')+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
+    var row=el("div","foodResultRow",
+      '<div class="frt"><b>'+f.name+'<span class="foodTag">Commerce</span></b><span>'+meta+' · code '+code+'</span></div>'+
+      '<button class="frAdd">+ '+portion+' g</button>');
+    row.querySelector(".frAdd").addEventListener("click",function(){ addRealFood(f,portion,null,null); lastScanned=null; });
+    box.appendChild(row);
+    $("#scanStatus").textContent="Produit trouvé — vérifie et ajoute, ou continue de scanner.";
   }
   /* Recharge le journal du jour + objectifs depuis la base : la SOURCE DE VÉRITÉ est le serveur. */
   async function loadTodayNutrition(){
@@ -1248,20 +1344,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       c.appendChild(el("div","meal",'<div class="mi">'+m.ic+'</div><div class="mt2"><b>'+m.n+(m.e?'<span class="est">estimation</span>':'')+'</b><span>'+m.s+'</span></div><div class="mk2">'+m.k+'</div>'));
     });}
   var kcalTotal=1320;
-  function addFood(kind){
-    closeSheet();
-    var items={search:{n:"Banane",s:"Recherche · 120 g",k:"105",e:false,ic:"🍌",p:1,c:27,l:0,f:3},
-      barcode:{n:"Skyr vanille",s:"Code-barre · 150 g",k:"130",e:false,ic:"🥛",p:18,c:12,l:0,f:0},
-      photo:{n:"Assiette pâtes & légumes",s:"Photo IA · ~350 g",k:"480",e:true,ic:"🍝",p:16,c:68,l:14,f:8}};
-    var it=items[kind];
-    setTimeout(function(){
-      DATA.meals.push(it); renderMeals();
-      kcalTotal+=parseInt(it.k,10);
-      DATA.macros[0].v+=it.p; DATA.macros[1].v+=it.c; DATA.macros[2].v+=it.l; DATA.macros[3].v+=it.f;
-      renderKcalRing(); animateMacroRings();
-      toast(kind==="photo"?"Estimé par photo — ajuste la portion si besoin":"Ajouté au journal");
-    }, 260);
-  }
 
   /* ---------- Render : Santé ---------- */
   function renderBio(){
@@ -1525,14 +1607,27 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   /* ---------- Sheets ---------- */
   var openSheetEl=null;
   function openSheet(id){closeSheet();var s=$("#"+id);if(!s)return;$("#scrim").classList.add("on");s.classList.add("on");openSheetEl=s;}
-  function closeSheet(){$("#scrim").classList.remove("on");if(openSheetEl){openSheetEl.classList.remove("on");openSheetEl=null;}}
+  function closeSheet(){$("#scrim").classList.remove("on");if(openSheetEl){openSheetEl.classList.remove("on");openSheetEl=null;}stopScanner();}
   $("#scrim").addEventListener("click",closeSheet);
   $("#btnProfile").addEventListener("click",function(){openSheet("sheetProfile");});
   $("#btnConnect").addEventListener("click",function(){openSheet("sheetConnect");});
-  $("#btnAddFood").addEventListener("click",function(){openSheet("sheetAdd");});
+  $("#btnAddFood").addEventListener("click",function(){showAddView("options");openSheet("sheetAdd");});
   $("#addBilan").addEventListener("click",function(){toast("Importe un bilan PDF — extraction automatique par IA");});
   $$("[data-connect]").forEach(function(b){b.addEventListener("click",function(){closeSheet();setTimeout(function(){toast(b.dataset.connect+" connecté ✓");},240);});});
-  $$("[data-add]").forEach(function(b){b.addEventListener("click",function(){addFood(b.dataset.add);});});
+  $$("[data-add]").forEach(function(b){b.addEventListener("click",function(){
+    var kind=b.dataset.add;
+    if(kind==="search"){ showAddView("search"); }
+    else if(kind==="barcode"){ showAddView("barcode"); startScanner(); }
+    else { toast("Photo IA — bientôt disponible, pas encore branchée."); }
+  });});
+  $("#searchBackBtn").addEventListener("click",function(){ showAddView("options"); });
+  $("#barcodeBackBtn").addEventListener("click",function(){ showAddView("options"); lastScanned=null; $("#barcodeResult").innerHTML=""; $("#manualBarcode").value=""; });
+  $("#sheetFoodSearch").addEventListener("input",function(){ renderFoodSearch("sheetFoodSearch","sheetFoodResults"); });
+  $("#manualBarcodeGo").addEventListener("click",function(){
+    var code=($("#manualBarcode").value||"").trim();
+    if(!/^[0-9]{6,14}$/.test(code)){ $("#scanStatus").textContent="Code-barre invalide (6 à 14 chiffres)."; return; }
+    lastScanned=null; lookupBarcodeAndShow(code);
+  });
 
   /* ---------- Coach chat ---------- */
   var COACH={
@@ -1583,7 +1678,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   $("#tFinish").addEventListener("click",timerFinish);
   $("#logSearch").addEventListener("input",logSearchInput);
   $("#logSave").addEventListener("click",logSave);
-  $("#foodSearch").addEventListener("input",renderFoodSearch);
   /* Démarrage réel : session anonyme puis remplacement des données démo par TES données. */
   ensureAnon().then(function(){
     if(AUTH.ready){
