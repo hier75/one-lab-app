@@ -434,13 +434,29 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       <div class="card timer-wrap">
         <div class="timer">
           <svg viewBox="0 0 160 160"><circle class="tt" cx="80" cy="80" r="70"/><circle class="tp" id="timerRing" cx="80" cy="80" r="70"/></svg>
-          <div class="c"><div class="time" id="timerTime">00:00</div><div class="st" id="timerState">Prêt</div></div>
+          <div class="c"><div class="time" id="timerTime">00:00</div><div class="st" id="timerUnit">MIN : SEC</div><div class="st" id="timerState">Prêt</div></div>
         </div>
         <div class="timer-ctrls">
           <button class="tbtn primary" id="tStart">Démarrer</button>
-          <button class="tbtn" id="tReset">Réinitialiser</button>
+          <button class="tbtn" id="tLap">Tour</button>
+          <button class="tbtn" id="tReset">Zéro</button>
         </div>
+        <div style="width:100%;margin-top:16px">
+          <div class="eyebrow">Activité chronométrée</div>
+          <div id="actChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;max-height:96px;overflow-y:auto"></div>
+          <div class="eyebrow" id="distLabel" style="margin-top:12px">Distance totale (m) — optionnel</div>
+          <input class="finput" id="chronoDist" inputmode="numeric" placeholder="ex. 5000" style="margin-top:6px">
+        </div>
+        <div style="width:100%;margin-top:14px">
+          <div class="eyebrow" id="lapTitle"></div>
+          <div id="lapList"></div>
+        </div>
+        <button class="tbtn primary" id="tFinish" style="display:none;margin-top:16px;width:100%">Terminer &amp; enregistrer</button>
+        <div id="chronoStatus" style="font-size:12.5px;color:var(--accent-ink);margin-top:10px"></div>
       </div>
+
+      <div class="section-title"><h2>Historique</h2><span style="font-size:12px;color:var(--text-3)">Séances enregistrées</span></div>
+      <div class="card"><div id="histList"></div></div>
 
       <div class="card" style="display:flex;align-items:center;justify-content:space-between">
         <div>
@@ -817,18 +833,137 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     $("#sportMascotMini").innerHTML=mascotSVG("sport");
     $("#sportMascotMini").firstChild.style.width="34px";$("#sportMascotMini").firstChild.style.height="34px";
   }
-  /* Timer */
-  var tInt=null,tSec=0,tRun=false,TC=439.8,TARGET=45*60;
-  function fmt(s){var m=Math.floor(s/60),ss=s%60;return (m<10?"0":"")+m+":"+(ss<10?"0":"")+ss;}
-  function tick(){tSec++;$("#timerTime").textContent=fmt(tSec);
-    $("#timerRing").style.strokeDashoffset=TC*(1-Math.min(tSec/TARGET,1));}
-  function timerStart(){
-    if(tRun){tRun=false;clearInterval(tInt);$("#tStart").textContent="Reprendre";$("#timerState").textContent="En pause";return;}
-    tRun=true;$("#tStart").textContent="Pause";$("#timerState").textContent="En séance";
-    tInt=setInterval(tick,1000);
+  /* ---------- Chronomètre (§9.4) ----------
+     Le temps vient d'horodatages (Date.now()), jamais d'un compteur incrémenté :
+     un setInterval dérive et se fait suspendre quand l'onglet passe en arrière-plan
+     ou que l'écran s'éteint — sur une séance d'une heure on perdrait des minutes.
+     Le tick ne sert qu'à rafraîchir l'affichage. Dépasse l'heure : bascule en H:MM:SS. */
+  var tInt=null, tAccum=0, tStart=null, tRun=false, TC=439.8, TARGET=45*60;
+  var LAPS=[], ACTIVITIES=[], activitySlug="musculation", activityName="Musculation";
+
+  function tRead(){ return tAccum + (tStart ? Date.now()-tStart : 0); }
+  function fmt(ms){
+    var tot=Math.max(0,Math.floor(ms/1000));
+    var h=Math.floor(tot/3600), m=Math.floor((tot%3600)/60), s=tot%60;
+    var mm=(m<10?"0":"")+m, ss=(s<10?"0":"")+s;
+    return h>0 ? h+":"+mm+":"+ss : mm+":"+ss;
   }
-  function timerReset(){tRun=false;clearInterval(tInt);tSec=0;$("#timerTime").textContent="00:00";
-    $("#timerState").textContent="Prêt";$("#tStart").textContent="Démarrer";$("#timerRing").style.strokeDashoffset=TC;}
+  function paint(){
+    var ms=tRead();
+    $("#timerTime").textContent=fmt(ms);
+    $("#timerTime").style.fontSize = ms>=3600000 ? "32px" : "40px";
+    $("#timerUnit").textContent = ms>=3600000 ? "H : MIN : SEC" : "MIN : SEC";
+    $("#timerRing").style.strokeDashoffset=TC*(1-Math.min((ms/1000)/TARGET,1));
+  }
+  function timerStart(){
+    if(tRun){
+      tAccum=tRead(); tStart=null; tRun=false; clearInterval(tInt);
+      $("#tStart").textContent="Reprendre"; $("#timerState").textContent="En pause";
+      paint(); renderFinishBtn(); return;
+    }
+    tStart=Date.now(); tRun=true;
+    $("#tStart").textContent="Pause"; $("#timerState").textContent="En séance";
+    tInt=setInterval(paint,250); paint(); renderFinishBtn();
+  }
+  function timerLap(){
+    var ms=tRead(); if(ms<=0) return;
+    LAPS.push(ms); renderLaps();
+  }
+  function timerReset(){
+    tRun=false; clearInterval(tInt); tAccum=0; tStart=null; LAPS=[];
+    $("#timerState").textContent="Prêt"; $("#tStart").textContent="Démarrer";
+    paint(); renderLaps(); renderFinishBtn(); $("#chronoStatus").textContent="";
+  }
+  function renderLaps(){
+    var c=$("#lapList"); c.innerHTML="";
+    $("#lapTitle").textContent = LAPS.length ? "Tours · "+LAPS.length : "";
+    $("#distLabel").textContent = LAPS.length ? "Distance par tour (m) — optionnel" : "Distance totale (m) — optionnel";
+    if(!LAPS.length) return;
+    var durs=LAPS.map(function(c2,i){ return c2-(i===0?0:LAPS[i-1]); });
+    var best=Math.min.apply(null,durs);
+    durs.forEach(function(d,i){
+      var mark = (d===best && durs.length>1) ? ' <span style="color:var(--accent-ink)">▲ meilleur</span>' : '';
+      c.appendChild(el("div","libRow",
+        '<span style="color:var(--text-3);width:32px;font-size:12.5px">#'+(i+1)+'</span>'+
+        '<div class="lt"><b>'+fmt(d)+mark+'</b></div>'+
+        '<span style="color:var(--text-3);font-size:12px">'+fmt(LAPS[i])+'</span>'));
+    });
+  }
+  function renderFinishBtn(){
+    $("#tFinish").style.display = (!tRun && tRead()>=1000) ? "" : "none";
+  }
+  /* Activités réelles : table sport_activity_catalog (67 entrées, dont sprint et footing). */
+  async function loadActivities(){
+    if(!sb) return;
+    var r=await sb.from("sport_activity_catalog").select("slug,name_fr").order("position");
+    if(r.error||!r.data) return;
+    ACTIVITIES=r.data;
+    var c=$("#actChips"); c.innerHTML="";
+    ACTIVITIES.forEach(function(a){
+      var b=el("button","catChip"+(a.slug===activitySlug?" on":""),a.name_fr);
+      b.addEventListener("click",function(){
+        activitySlug=a.slug; activityName=a.name_fr;
+        $$(".catChip",c).forEach(function(x){x.classList.remove("on");});
+        b.classList.add("on");
+      });
+      c.appendChild(b);
+    });
+  }
+  /* Enregistrement : 1 séance + 1 exercice + 1 série par tour.
+     C'est le lien chrono <-> exercices : un sprint en 6 tours donne 6 séries
+     comparables entre elles et d'une séance à l'autre. */
+  async function timerFinish(){
+    var ms=tRead();
+    if(ms<1000){ $("#chronoStatus").textContent="Chrono trop court."; return; }
+    if(!AUTH.ready){ $("#chronoStatus").textContent="Non enregistré : connexion requise (sessions anonymes désactivées)."; return; }
+    $("#chronoStatus").textContent="Enregistrement…";
+    var dist=($("#chronoDist").value||"").trim();
+    var cuts = LAPS.length ? LAPS : [ms];
+    var ended=new Date(), started=new Date(ended.getTime()-ms);
+    var ses=await sb.from("sport_sessions").insert({
+      user_id:AUTH.user.id, started_at:started.toISOString(), ended_at:ended.toISOString(),
+      duration_seconds:Math.round(ms/1000), completed:true, activity_slug:activitySlug
+    }).select("id").single();
+    if(ses.error){ $("#chronoStatus").textContent="Erreur : "+ses.error.message; return; }
+    var exr=await sb.from("sport_session_exercises").insert({
+      session_id:ses.data.id, user_id:AUTH.user.id, name_fr:activityName,
+      checked:true, position:0, sets:cuts.length
+    }).select("id").single();
+    if(exr.error){ $("#chronoStatus").textContent="Erreur : "+exr.error.message; return; }
+    var rows=cuts.map(function(c2,i){
+      return { session_exercise_id:exr.data.id, user_id:AUTH.user.id, set_number:i+1,
+               duration_seconds:Math.round((c2-(i===0?0:cuts[i-1]))/1000),
+               distance_m: dist ? Math.round(Number(dist.replace(",","."))) : null };
+    });
+    var st=await sb.from("sport_session_sets").insert(rows);
+    if(st.error){ $("#chronoStatus").textContent="Erreur séries : "+st.error.message; return; }
+    var n=LAPS.length;
+    timerReset(); $("#chronoDist").value="";
+    $("#chronoStatus").textContent="Enregistré : "+activityName+" · "+fmt(ms)+(n?" · "+n+" tours":"")+".";
+    toast("Séance enregistrée");
+    loadHistory(); loadSportPersonal();
+  }
+  /* Historique réel : dernières séances chronométrées de l'utilisateur. */
+  async function loadHistory(){
+    if(!AUTH.ready||!sb) return;
+    var r=await sb.from("sport_sessions")
+      .select("id,started_at,duration_seconds,activity_slug,sport_session_exercises(name_fr,sport_session_sets(set_number,duration_seconds,distance_m))")
+      .eq("completed",true).order("started_at",{ascending:false}).limit(5);
+    var c=$("#histList"); if(!c) return;
+    c.innerHTML="";
+    if(r.error||!r.data||!r.data.length){
+      c.appendChild(el("div","libRow",'<div class="lt"><span>Aucune séance enregistrée pour l\'instant.</span></div>'));
+      return;
+    }
+    r.data.forEach(function(s){
+      var ex=(s.sport_session_exercises&&s.sport_session_exercises[0])||{};
+      var nb=(ex.sport_session_sets||[]).length;
+      var d=new Date(s.started_at).toLocaleDateString("fr-FR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+      c.appendChild(el("div","libRow",
+        '<div class="lt"><b>'+(ex.name_fr||s.activity_slug||"Séance")+'</b><span>'+d+(nb>1?" · "+nb+" tours":"")+'</span></div>'+
+        '<span style="font-weight:700;color:var(--accent-ink)">'+fmt((s.duration_seconds||0)*1000)+'</span>'));
+    });
+  }
 
   /* ---------- Sport : bibliothèque, exercice perso, séance perso (miroir du backend) ---------- */
   // En prod (app RN) : sport_exercise_catalog (873), sport_user_exercises, sport_user_workouts.
@@ -1224,12 +1359,18 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   /* ---------- Init ---------- */
   renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
   initSportBuilder();
+  loadActivities();
+  $("#tStart").addEventListener("click",timerStart);
+  $("#tLap").addEventListener("click",timerLap);
+  $("#tReset").addEventListener("click",timerReset);
+  $("#tFinish").addEventListener("click",timerFinish);
   $("#foodSearch").addEventListener("input",renderFoodSearch);
   /* Démarrage réel : session anonyme puis remplacement des données démo par TES données. */
   ensureAnon().then(function(){
     if(AUTH.ready){
       loadTodayNutrition();
       loadSportPersonal();
+      loadHistory();
     }
   });
   renderBio();renderBilans();renderLabs();renderBasket();renderCatalogue();
