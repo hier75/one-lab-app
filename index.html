@@ -1347,17 +1347,37 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
   /* ---------- Render : Santé ---------- */
   function renderBio(){
-    var c=$("#bioList");var order=["Métabolique","Cardiovasculaire","Inflammatoire","Hormonal","Récupération"];
-    order.forEach(function(dom){
-      c.appendChild(el("h3",null,dom));
-      DATA.bio.filter(function(b){return b.dom===dom;}).forEach(function(b){
+    var c=$("#bioList");c.innerHTML="";var order=["Métabolique","Cardiovasculaire","Inflammatoire","Hormonal","Récupération"];
+    var VISIBLE_DOMAINS=2; // domaines toujours affichés ; le reste se déplie via le bouton
+    var hiddenCount=0, more=null;
+    order.forEach(function(dom,i){
+      var target=c;
+      if(i===VISIBLE_DOMAINS){
+        more=el("div","","");more.id="bioMore";more.style.display="none";
+        c.appendChild(more);
+      }
+      if(i>=VISIBLE_DOMAINS) target=more;
+      var items=DATA.bio.filter(function(b){return b.dom===dom;});
+      if(i>=VISIBLE_DOMAINS) hiddenCount+=items.length;
+      target.appendChild(el("h3",null,dom));
+      items.forEach(function(b){
         var row=el("div","bio",
           '<div><div class="bn">'+b.n+'</div><div class="bsub">Zone optimale '+b.zone+' '+b.u+'</div></div>'+
           spark(b.sp)+
           '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px"><div class="bval">'+b.v+' <small>'+b.u+'</small></div><span class="tag '+(b.ok?'ok':'off')+'">'+(b.ok?'En zone':'Hors zone')+'</span></div>');
-        c.appendChild(row);
+        target.appendChild(row);
       });
     });
+    if(order.length>VISIBLE_DOMAINS){
+      var btn=el("button","tbtn","Afficher plus ("+hiddenCount+")");
+      btn.style.cssText="width:100%;margin-top:12px";
+      btn.addEventListener("click",function(){
+        var open=more.style.display!=="none";
+        more.style.display=open?"none":"block";
+        btn.textContent=open?"Afficher plus ("+hiddenCount+")":"Afficher moins";
+      });
+      c.appendChild(btn);
+    }
   }
   function renderBilans(){var c=$("#bilanList");c.innerHTML="";
     DATA.bilans.forEach(function(b){c.appendChild(el("div","row",'<div class="ri">'+b[2]+'</div><div class="rt"><b>'+b[0]+'</b><span>'+b[1]+'</span></div><div class="rr">Traité ✓</div>'));});}
@@ -1409,14 +1429,29 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       return;
     }
     $("#labCount").textContent=r.data.length+" trouvé"+(r.data.length>1?"s":"");
-    r.data.forEach(function(l){
+    var VISIBLE_LABS=5;
+    var more=null;
+    r.data.forEach(function(l,i){
       var d=l.distance_m>=1000?(l.distance_m/1000).toFixed(1).replace(".",",")+" km":l.distance_m+" m";
       var sub=[d,l.address,l.city,l.opening_hours].filter(Boolean).join(" · ");
       var right=l.phone
         ? '<a class="rr tel" href="tel:'+String(l.phone).replace(/\s/g,"")+'" style="color:var(--accent-ink);text-decoration:none">Appeler</a>'
         : '<a class="rr" href="https://www.google.com/maps/search/?api=1&query='+l.lat+','+l.lng+'" target="_blank" rel="noopener" style="color:var(--accent-ink);text-decoration:none">Y aller</a>';
-      c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>'+l.name+'</b><span>'+sub+'</span></div>'+right));
+      var row=el("div","row",'<div class="ri">📍</div><div class="rt"><b>'+l.name+'</b><span>'+sub+'</span></div>'+right);
+      if(i===VISIBLE_LABS){ more=el("div","","");more.id="labMore";more.style.display="none";c.appendChild(more); }
+      (i<VISIBLE_LABS?c:more).appendChild(row);
     });
+    if(r.data.length>VISIBLE_LABS){
+      var hidden=r.data.length-VISIBLE_LABS;
+      var btn=el("button","tbtn","Afficher plus ("+hidden+")");
+      btn.style.cssText="width:100%;margin-top:10px";
+      btn.addEventListener("click",function(){
+        var open=more.style.display!=="none";
+        more.style.display=open?"none":"block";
+        btn.textContent=open?"Afficher plus ("+hidden+")":"Afficher moins";
+      });
+      c.appendChild(btn);
+    }
     c.appendChild(el("div","row",'<div class="rt"><span style="font-size:11px;color:var(--text-3)">Annuaire OpenStreetMap · '+label+' — tu contactes toi-même le laboratoire</span></div>'));
   }
 
