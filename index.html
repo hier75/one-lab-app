@@ -534,8 +534,12 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       <div class="section-title"><h2>Mes bilans</h2><span class="link" id="addBilan">+ Ajouter</span></div>
       <div class="card"><div id="bilanList"></div></div>
 
-      <div class="section-title"><h2>Laboratoires à proximité</h2></div>
-      <div class="card"><div id="labList"></div></div>
+      <div class="section-title"><h2>Laboratoires à proximité</h2><span id="labCount" style="font-size:12px;color:var(--text-3)"></span></div>
+      <div class="card">
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px" id="labRadius"></div>
+        <div id="labList"></div>
+        <button class="tbtn" id="labRetry" style="width:100%;margin-top:10px">Relancer la recherche</button>
+      </div>
       <p class="foot">Aperçu · données de démonstration</p>
     </section>
 
@@ -1086,44 +1090,63 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
   function renderBilans(){var c=$("#bilanList");c.innerHTML="";
     DATA.bilans.forEach(function(b){c.appendChild(el("div","row",'<div class="ri">'+b[2]+'</div><div class="rt"><b>'+b[0]+'</b><span>'+b[1]+'</span></div><div class="rr">Traité ✓</div>'));});}
-  function renderLabs(){var c=$("#labList");c.innerHTML="";
-    c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>Localisation…</b><span>Recherche des laboratoires autour de toi</span></div>'));
-    loadRealLabs();
+  /* ---------- Laboratoires : lecture de NOTRE base (fonction SQL labs_nearby) ----------
+     3 763 laboratoires France importés dans health_labs. Aucune API externe au runtime :
+     Overpass limite par IP et répond « 200 + page HTML d'erreur » quand le quota saute,
+     ce qui faisait afficher « aucun laboratoire ». La recherche est maintenant une
+     requête Postgres indexée : quelques millisecondes, jamais de quota. */
+  var LAB_RADII=[1000,3000,5000,10000,20000], labRadius=5000, labPos=null, labInit=false;
+  function renderLabs(){
+    if(!labInit){ labInit=true; buildRadiusChips(); $("#labRetry").addEventListener("click",function(){labPos=null;locateThenLoad();}); }
+    locateThenLoad();
   }
-  /* VRAIS laboratoires (OpenStreetMap via Edge Function labs-nearby, aucune clé requise). */
-  var labsLoaded=false;
-  function loadRealLabs(){
-    if(labsLoaded) return; labsLoaded=true;
-    function go(lat,lng,label){
-      fetch(SUPA_URL+"/functions/v1/labs-nearby?lat="+lat+"&lng="+lng+"&radius_m=4000",{
-        headers:{Authorization:"Bearer "+SUPA_ANON, apikey:SUPA_ANON}})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        var c=$("#labList"); c.innerHTML="";
-        if(!d.labs||!d.labs.length){
-          c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>Aucun laboratoire trouvé à 4 km</b><span>'+label+' — élargis la zone ou vérifie ta position</span></div>'));
-          return;
-        }
-        d.labs.slice(0,8).forEach(function(l){
-          var dist=l.distance_m>=1000?(l.distance_m/1000).toFixed(1).replace(".",",")+" km":l.distance_m+" m";
-          var sub=[dist,l.address,l.opening_hours].filter(Boolean).join(" · ");
-          var right=l.phone?'<a class="rr tel" href="tel:'+l.phone.replace(/\s/g,"")+'" style="color:var(--accent-ink);text-decoration:none">'+l.phone+'</a>'
-                           :'<a class="rr" href="https://www.google.com/maps/search/?api=1&query='+l.lat+","+l.lng+'" target="_blank" style="color:var(--accent-ink);text-decoration:none">Itinéraire</a>';
-          c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>'+l.name+'</b><span>'+sub+'</span></div>'+right));
-        });
-        c.appendChild(el("div","row",'<div class="rt"><span style="font-size:11px;color:var(--text-3)">Données publiques '+(d.source==="google"?"Google Places":"OpenStreetMap")+' · '+label+' — tu appelles toi-même le laboratoire</span></div>'));
-      })
-      .catch(function(){
-        var c=$("#labList"); c.innerHTML="";
-        c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>Service indisponible</b><span>Réessaie dans un instant</span></div>'));
+  function buildRadiusChips(){
+    var c=$("#labRadius"); c.innerHTML="";
+    LAB_RADII.forEach(function(r){
+      var b=el("button","catChip"+(r===labRadius?" on":""),(r/1000)+" km");
+      b.addEventListener("click",function(){
+        labRadius=r;
+        $$(".catChip",c).forEach(function(x){x.classList.remove("on");});
+        b.classList.add("on");
+        if(labPos) queryLabs(labPos.lat,labPos.lng,labPos.label); else locateThenLoad();
       });
+      c.appendChild(b);
+    });
+  }
+  function labMsg(title,sub){
+    var c=$("#labList"); c.innerHTML="";
+    c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>'+title+'</b><span>'+(sub||"")+'</span></div>'));
+  }
+  function locateThenLoad(){
+    if(labPos){ queryLabs(labPos.lat,labPos.lng,labPos.label); return; }
+    labMsg("Localisation…","Autorise l'accès à ta position");
+    if(!navigator.geolocation){ labPos={lat:48.8566,lng:2.3522,label:"Paris (géolocalisation indisponible)"}; queryLabs(labPos.lat,labPos.lng,labPos.label); return; }
+    navigator.geolocation.getCurrentPosition(
+      function(p){ labPos={lat:p.coords.latitude,lng:p.coords.longitude,label:"autour de ta position"}; queryLabs(labPos.lat,labPos.lng,labPos.label); },
+      function(err){ labPos={lat:48.8566,lng:2.3522,label:"Paris par défaut — position refusée ("+(err&&err.message?err.message:"")+")"}; queryLabs(labPos.lat,labPos.lng,labPos.label); },
+      {timeout:9000,maximumAge:120000,enableHighAccuracy:false});
+  }
+  async function queryLabs(lat,lng,label){
+    if(!sb){ labMsg("Connexion base indisponible","Ouvre l'app via son URL déployée"); return; }
+    labMsg("Recherche…",(labRadius/1000)+" km "+label);
+    var r=await sb.rpc("labs_nearby",{p_lat:lat,p_lng:lng,p_radius_m:labRadius,p_limit:20});
+    if(r.error){ labMsg("Erreur base",r.error.message); $("#labCount").textContent=""; return; }
+    var c=$("#labList"); c.innerHTML="";
+    if(!r.data||!r.data.length){
+      $("#labCount").textContent="";
+      labMsg("Aucun laboratoire à "+(labRadius/1000)+" km","Élargis le rayon ci-dessus");
+      return;
     }
-    if(navigator.geolocation){
-      navigator.geolocation.getCurrentPosition(
-        function(p){go(p.coords.latitude.toFixed(5),p.coords.longitude.toFixed(5),"autour de ta position");},
-        function(){go(48.8566,2.3522,"position refusée — Paris par défaut");},
-        {timeout:8000,maximumAge:300000});
-    }else{go(48.8566,2.3522,"géolocalisation indisponible — Paris par défaut");}
+    $("#labCount").textContent=r.data.length+" trouvé"+(r.data.length>1?"s":"");
+    r.data.forEach(function(l){
+      var d=l.distance_m>=1000?(l.distance_m/1000).toFixed(1).replace(".",",")+" km":l.distance_m+" m";
+      var sub=[d,l.address,l.city,l.opening_hours].filter(Boolean).join(" · ");
+      var right=l.phone
+        ? '<a class="rr tel" href="tel:'+String(l.phone).replace(/\s/g,"")+'" style="color:var(--accent-ink);text-decoration:none">Appeler</a>'
+        : '<a class="rr" href="https://www.google.com/maps/search/?api=1&query='+l.lat+','+l.lng+'" target="_blank" rel="noopener" style="color:var(--accent-ink);text-decoration:none">Y aller</a>';
+      c.appendChild(el("div","row",'<div class="ri">📍</div><div class="rt"><b>'+l.name+'</b><span>'+sub+'</span></div>'+right));
+    });
+    c.appendChild(el("div","row",'<div class="rt"><span style="font-size:11px;color:var(--text-3)">Annuaire OpenStreetMap · '+label+' — tu contactes toi-même le laboratoire</span></div>'));
   }
 
   /* ---------- Render : Boutique ---------- */
