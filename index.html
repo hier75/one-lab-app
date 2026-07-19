@@ -543,7 +543,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
       <div class="section-title"><h2>Ajouter un aliment</h2><span style="font-size:12px;color:var(--text-3)">Base + Open Food Facts</span></div>
       <div class="card">
-        <input class="finput" id="foodSearch" placeholder="Rechercher (ex. poulet, skyr, riz…)" autocomplete="off">
+        <input class="finput" id="foodSearch" placeholder="Rechercher parmi 3 240 aliments (ex. poulet, riz…)" autocomplete="off">
         <div id="foodResults"></div>
       </div>
 
@@ -1106,17 +1106,20 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     var q=($("#foodSearch").value||"").trim(), c=$("#foodResults"); c.innerHTML="";
     if(q.length<2) return;
     if(!sb){c.appendChild(el("div","libRow",'<div class="lt"><span>Connexion base indisponible (CDN bloqué).</span></div>'));return;}
-    var res=await sb.from("nutrition_foods")
-      .select("id,name,brand,kcal_100g,protein_100g,carb_100g,fat_100g,fiber_100g,serving_g")
-      .ilike("name","%"+q+"%").limit(6);
+    // Recherche classée côté base (RPC foods_search) : correspondances en début de
+    // nom d'abord, insensible aux accents. 3 240 aliments dont la table CIQUAL.
+    var res=await sb.rpc("foods_search",{p_q:q,p_limit:8});
     if(res.error){c.appendChild(el("div","libRow",'<div class="lt"><span>Erreur base : '+res.error.message+'</span></div>'));return;}
-    if(!res.data.length){c.appendChild(el("div","libRow",'<div class="lt"><span>Aucun résultat pour « '+q+' » — 65 aliments de référence + tes ajouts.</span></div>'));return;}
+    if(!res.data||!res.data.length){c.appendChild(el("div","libRow",'<div class="lt"><span>Aucun résultat pour « '+q+' ». Essaie un terme plus court (ex. « riz » plutôt que « riz basmati »).</span></div>'));return;}
     res.data.forEach(function(f){
       var portion=f.serving_g||100;
-      var e=el("div","libRow",'<div class="lt"><b>'+f.name+(f.brand?' · '+f.brand:'')+'</b><span>'+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g</span></div><button class="ladd">+ '+portion+' g</button>');
+      var meta=Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
+      if(f.group_fr) meta+=' · '+f.group_fr;
+      var e=el("div","libRow",'<div class="lt"><b>'+f.name+(f.brand?' · '+f.brand:'')+'</b><span>'+meta+'</span></div><button class="ladd">+ '+portion+' g</button>');
       e.querySelector(".ladd").addEventListener("click",function(){addRealFood(f,portion);});
       c.appendChild(e);
     });
+    c.appendChild(el("div","libRow",'<div class="lt"><span style="font-size:10.5px;color:var(--text-3)">Source : Anses, table Ciqual de composition nutritionnelle des aliments</span></div>'));
   }
   async function addRealFood(f,portion){
     var r=portion/100;
