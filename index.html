@@ -1106,30 +1106,67 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     var q=($("#foodSearch").value||"").trim(), c=$("#foodResults"); c.innerHTML="";
     if(q.length<2) return;
     if(!sb){c.appendChild(el("div","libRow",'<div class="lt"><span>Connexion base indisponible (CDN bloqué).</span></div>'));return;}
-    // Recherche classée côté base (RPC foods_search) : correspondances en début de
-    // nom d'abord, insensible aux accents. 3 240 aliments dont la table CIQUAL.
-    var res=await sb.rpc("foods_search",{p_q:q,p_limit:8});
-    if(res.error){c.appendChild(el("div","libRow",'<div class="lt"><span>Erreur base : '+res.error.message+'</span></div>'));return;}
-    if(!res.data||!res.data.length){c.appendChild(el("div","libRow",'<div class="lt"><span>Aucun résultat pour « '+q+' ». Essaie un terme plus court (ex. « riz » plutôt que « riz basmati »).</span></div>'));return;}
-    res.data.forEach(function(f){
+    c.appendChild(el("div","libRow",'<div class="lt"><span>Recherche…</span></div>'));
+
+    // Deux sources en parallèle : la base locale (Ciqual + déjà scannés + perso,
+    // quelques ms) et Open Food Facts en direct (des millions de produits du
+    // commerce, recherche plein texte via l'Edge Function food-search).
+    var localP = sb.rpc("foods_search",{p_q:q,p_limit:8});
+    var remoteP = sb.functions.invoke("food-search?q="+encodeURIComponent(q)+"&page_size=10", {method:"GET"});
+    var results = await Promise.allSettled([localP, remoteP]);
+
+    var local = (results[0].status==="fulfilled" && !results[0].value.error) ? (results[0].value.data||[]) : [];
+    var remote = (results[1].status==="fulfilled" && !results[1].value.error && results[1].value.data)
+      ? (results[1].value.data.foods||[]) : [];
+
+    c.innerHTML="";
+    if(!local.length && !remote.length){
+      c.appendChild(el("div","libRow",'<div class="lt"><span>Aucun résultat pour « '+q+' ».</span></div>'));
+      return;
+    }
+
+    var seen={}, merged=[];
+    local.concat(remote).forEach(function(f){
+      var key=f.barcode||f.name.toLowerCase();
+      if(seen[key]) return;
+      seen[key]=true; merged.push(f);
+    });
+
+    merged.slice(0,12).forEach(function(f){
       var portion=f.serving_g||100;
-      var meta=Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
-      if(f.group_fr) meta+=' · '+f.group_fr;
-      var e=el("div","libRow",'<div class="lt"><b>'+f.name+(f.brand?' · '+f.brand:'')+'</b><span>'+meta+'</span></div><button class="ladd">+ '+portion+' g</button>');
+      var tag = f.source==="ciqual" ? "Ciqual" : f.source==="openfoodfacts" ? "Commerce" : f.source==="user" ? "Perso" : "Référence";
+      var meta=(f.brand?f.brand+' · ':'')+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
+      var e=el("div","libRow",
+        '<div class="lt"><b>'+f.name+' <span style="font-size:8.5px;font-weight:700;border:1px solid var(--card-border);'+
+        'border-radius:6px;padding:1px 5px;color:var(--text-3);text-transform:uppercase;vertical-align:middle">'+tag+'</span></b>'+
+        '<span>'+meta+'</span></div><button class="ladd">+ '+portion+' g</button>');
       e.querySelector(".ladd").addEventListener("click",function(){addRealFood(f,portion);});
       c.appendChild(e);
     });
-    c.appendChild(el("div","libRow",'<div class="lt"><span style="font-size:10.5px;color:var(--text-3)">Source : Anses, table Ciqual de composition nutritionnelle des aliments</span></div>'));
+    c.appendChild(el("div","libRow",'<div class="lt"><span style="font-size:10.5px;color:var(--text-3)">Ciqual (Anses) pour les aliments génériques · Open Food Facts pour les produits du commerce, recherché en direct parmi plusieurs millions de fiches</span></div>'));
   }
   async function addRealFood(f,portion){
     var r=portion/100;
     if(AUTH.ready){
+      var foodId=f.id;
+      // Produit Open Food Facts pas encore en base (résultat en direct, id=null) :
+      // on le met en cache avant d'insérer l'entrée, pour une prochaine recherche
+      // instantanée et un food_id toujours renseigné.
+      if(!foodId && f.source==="openfoodfacts"){
+        var cache=await sb.from("nutrition_foods").upsert({
+          barcode:f.barcode||null, name:f.name, brand:f.brand||null,
+          kcal_100g:f.kcal_100g, protein_100g:f.protein_100g, carb_100g:f.carb_100g,
+          fat_100g:f.fat_100g, fiber_100g:f.fiber_100g, serving_g:f.serving_g,
+          source:"openfoodfacts"
+        }, {onConflict:"barcode"}).select("id").maybeSingle();
+        foodId = cache.data ? cache.data.id : null;
+      }
       var ins=await sb.from("nutrition_entries").insert({
         user_id:AUTH.user.id, source:"search", name:f.name, brand:f.brand||null,
         portion_g:portion, kcal:Math.round(f.kcal_100g*r),
         protein_g:Math.round(f.protein_100g*r*10)/10, carb_g:Math.round(f.carb_100g*r*10)/10,
         fat_g:Math.round(f.fat_100g*r*10)/10, fiber_g:Math.round(f.fiber_100g*r*10)/10,
-        is_estimate:false, food_id:f.id});
+        is_estimate:false, food_id:foodId});
       if(ins.error){toast("Erreur d'enregistrement : "+ins.error.message);return;}
       $("#foodSearch").value="";$("#foodResults").innerHTML="";
       await loadTodayNutrition();
