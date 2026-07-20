@@ -214,6 +214,9 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .exo .en{font-size:14.5px;font-weight:500;flex:1}
 .exo.done .en{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--accent-line)}
 .exo .er{font-size:13px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.pil-moment{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);margin:12px 0 2px}
+.pil-moment i{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.pil-note{font-size:10px;color:var(--accent-ink);background:var(--accent-soft);padding:2px 7px;border-radius:6px;flex:none}
 .coach-note{display:flex;gap:11px;align-items:flex-start;padding:13px 14px;border-radius:16px;
   background:var(--accent-soft);border:1px solid var(--accent-line);margin-top:2px}
 .coach-note .m{flex:none}
@@ -416,6 +419,17 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       <div class="hello">
         <div class="k">Bonjour,</div>
         <div class="n">Alex</div>
+      </div>
+
+      <div class="card" id="pilulierCard">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="eyebrow">Aujourd'hui</div>
+            <div style="font-size:17px;font-weight:600;color:var(--text-1);margin-top:2px">Pilulier</div>
+          </div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-1);background:var(--accent-soft);padding:5px 11px;border-radius:99px" id="pilCount">0/0</div>
+        </div>
+        <div id="pilList" style="margin-top:6px"></div>
       </div>
 
       <div class="card score-wrap">
@@ -768,6 +782,12 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   /* ---------- Démo (miroir du seed Supabase) ---------- */
   var DATA = {
     domains:[["Métabolique",100],["Cardiovasculaire",86],["Inflammatoire",94],["Hormonal",78],["Récupération",76]],
+    pilulier:[
+      {n:"Vitamine D3 + K2",dose:"1 unité",m:"Matin",done:true},
+      {n:"Oméga-3 TG concentré",dose:"1 unité",m:"Midi",done:false},
+      {n:"CoQ10 Ubiquinol",dose:"1 unité",m:"Midi",done:false,note:"non plafonné"},
+      {n:"Magnésium bisglycinate",dose:"1 unité",m:"Coucher",done:false}
+    ],
     wearables:[
       {k:"VFC",v:"68",u:" ms",d:"+6 vs baseline",ic:"heart"},
       {k:"FC repos",v:"52",u:" bpm",d:null,ic:"pulse"},
@@ -847,6 +867,37 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
 
   /* ---------- Render : Laboratoire ---------- */
+  function renderPilulier(){
+    var c=$("#pilList"); c.innerHTML="";
+    if(!DATA.pilulier.length){
+      c.innerHTML='<p class="muted" style="font-size:13px;padding:10px 2px">Pas de plan de prise actif ce mois-ci. Il apparaît ici dès qu\'un panier est généré.</p>';
+      $("#pilCount").textContent="0/0";
+      return;
+    }
+    ["Matin","Midi","Soir","Coucher"].forEach(function(moment){
+      var rows=DATA.pilulier.filter(function(p){return p.m===moment;});
+      if(!rows.length) return;
+      c.appendChild(el("div","pil-moment",'<i></i>'+moment));
+      rows.forEach(function(p){
+        var e=el("div","exo"+(p.done?" done":""),
+          '<div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>'+
+          '<span class="en">'+p.n+'</span>'+
+          (p.note?'<span class="pil-note">'+p.note+'</span>':'')+
+          '<span class="er">'+p.dose+'</span>');
+        e.addEventListener("click",function(){
+          p.done=!p.done;
+          e.classList.toggle("done");
+          updatePilCount();
+        });
+        c.appendChild(e);
+      });
+    });
+    updatePilCount();
+  }
+  function updatePilCount(){
+    var done=DATA.pilulier.filter(function(p){return p.done;}).length;
+    $("#pilCount").textContent=done+"/"+DATA.pilulier.length;
+  }
   function renderDomains(){
     var c=$("#domains");
     DATA.domains.forEach(function(d){
@@ -1722,7 +1773,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("on");},2600);}
 
   /* ---------- Init ---------- */
-  renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
+  renderPilulier();renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
   initSportBuilder();
   loadActivities();
   $("#tStart").addEventListener("click",timerStart);
