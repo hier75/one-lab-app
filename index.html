@@ -385,6 +385,28 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s!important;transition-duration:.001s!important}
 }
+
+/* ===== Auth gate (connexion / inscription / onboarding) ===== */
+#authGate{position:fixed;inset:0;z-index:999;background:var(--stone-2);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+#authGate .gcard{width:100%;max-width:380px;background:var(--card);border:1px solid var(--card-border);border-radius:22px;padding:24px;box-shadow:var(--shadow)}
+#authGate .gbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
+#authGate .gbrand b{font-size:16px;letter-spacing:.06em}
+#authGate h2{font-size:20px;margin:6px 0 4px;letter-spacing:-.01em}
+#authGate .geyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:600}
+#authGate .ghelp{font-size:12.5px;line-height:1.5;color:var(--text-2);margin:2px 0 14px}
+#authGate input{width:100%;box-sizing:border-box;border:1px solid var(--card-border);background:var(--card-2);color:var(--text-1);border-radius:14px;padding:12px 14px;font-size:14px;margin-bottom:10px;font-family:inherit}
+#authGate .grow{display:flex;gap:8px}
+#authGate .grow input{flex:1}
+#authGate .gpills{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 6px}
+#authGate .gpill{border:1px solid var(--card-border);background:var(--card-2);color:var(--text-2);border-radius:99px;padding:9px 14px;font-size:13px;cursor:pointer}
+#authGate .gpill.sel{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-ink);font-weight:700}
+#authGate .gbtn{width:100%;border:0;border-radius:14px;padding:13px;font-size:14.5px;font-weight:700;background:var(--accent);color:#221d12;cursor:pointer;margin-top:6px}
+#authGate .gbtn:disabled{opacity:.6}
+#authGate .glink{text-align:center;margin-top:14px;font-size:12.5px;color:var(--text-2)}
+#authGate .glink b{color:var(--accent-ink);cursor:pointer}
+#authGate .gerr{font-size:12px;color:var(--attention);margin:2px 0 6px}
+#authGate .gstep{font-size:11px;letter-spacing:.1em;color:var(--text-3);text-align:center;margin-bottom:10px;font-weight:600}
+#authGate .gback{font-size:12.5px;color:var(--text-2);cursor:pointer;margin-bottom:10px}
 </style>
 
 <!-- ===== Marbre : grain procédural (SVG feTurbulence, auto-contenu) ===== -->
@@ -401,7 +423,34 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     <stop offset="0" stop-color="#E0C591"/><stop offset="1" stop-color="#B8965F"/>
   </linearGradient></defs></svg>
 
-<div class="app">
+<div id="authGate">
+  <div class="gcard" id="gAuthCard">
+    <div class="gbrand"><svg width="24" height="24" viewBox="0 0 40 40"><rect x="6" y="3" width="28" height="34" rx="5.5" fill="#C1272D"/><rect x="18" y="10" width="4" height="20" rx="1" fill="#fff"/><rect x="10" y="18" width="20" height="4" rx="1" fill="#fff"/></svg><b>the one lab</b></div>
+    <div class="geyebrow" id="gAuthEyebrow">Créer un compte</div>
+    <h2 id="gAuthTitle">Rejoins The One Lab</h2>
+    <input id="gEmail" type="email" autocomplete="email" placeholder="Email">
+    <input id="gPassword" type="password" autocomplete="new-password" placeholder="Mot de passe (8 caractères min.)">
+    <div class="gerr" id="gAuthErr" style="display:none"></div>
+    <button class="gbtn" id="gAuthSubmit">Créer mon compte</button>
+    <div class="glink">Déjà un compte ? <b id="gAuthToggle">Se connecter</b></div>
+  </div>
+  <div class="gcard" id="gConfirmCard" style="display:none">
+    <div class="gbrand"><svg width="24" height="24" viewBox="0 0 40 40"><rect x="6" y="3" width="28" height="34" rx="5.5" fill="#C1272D"/><rect x="18" y="10" width="4" height="20" rx="1" fill="#fff"/><rect x="10" y="18" width="20" height="4" rx="1" fill="#fff"/></svg><b>the one lab</b></div>
+    <h2>Confirme ton email</h2>
+    <p class="ghelp" id="gConfirmMsg">Lien de confirmation envoyé — clique dessus puis reviens ici.</p>
+    <div class="gerr" id="gConfirmErr" style="display:none"></div>
+    <button class="gbtn" id="gConfirmRecheck">J'ai confirmé</button>
+  </div>
+  <div class="gcard" id="gOnboardCard" style="display:none">
+    <div class="gstep" id="gStepLabel">ÉTAPE 1 / 4</div>
+    <div id="gStepBack" class="gback" style="display:none">← Retour</div>
+    <div id="gStepBody"></div>
+    <div class="gerr" id="gOnboardErr" style="display:none"></div>
+    <button class="gbtn" id="gOnboardNext">Continuer</button>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none">
   <header class="hdr">
     <div class="brand">
       <svg class="badge" viewBox="0 0 40 40" aria-label="the one lab"><rect x="6" y="3" width="28" height="34" rx="5.5" fill="#C1272D"/><rect x="18" y="10" width="4" height="20" rx="1" fill="#fff"/><rect x="10" y="18" width="20" height="4" rx="1" fill="#fff"/></svg>
@@ -848,6 +897,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   };
 
   var $ = function(s,c){return (c||document).querySelector(s);};
+  var $$ = function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
   var el = function(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
 
   /* ---------- Mascottes (placeholders — statues de marbre en prod) ---------- */
@@ -1772,27 +1822,203 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   function toast(msg){var t=$("#toast");t.textContent=msg;t.classList.add("on");
     clearTimeout(toastT);toastT=setTimeout(function(){t.classList.remove("on");},2600);}
 
-  /* ---------- Init ---------- */
-  renderPilulier();renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
-  initSportBuilder();
-  loadActivities();
-  $("#tStart").addEventListener("click",timerStart);
-  $("#tLap").addEventListener("click",timerLap);
-  $("#tReset").addEventListener("click",timerReset);
-  $("#tFinish").addEventListener("click",timerFinish);
-  $("#logSearch").addEventListener("input",logSearchInput);
-  $("#logSave").addEventListener("click",logSave);
-  /* Démarrage réel : session anonyme puis remplacement des données démo par TES données. */
-  ensureAnon().then(function(){
-    if(AUTH.ready){
-      loadTodayNutrition();
-      loadSportPersonal();
-      loadHistory();
-    }
-  });
-  renderBio();renderBilans();renderLabs();renderBasket();renderCatalogue();
-  $("#coachBtn").innerHTML=mascotSVG("sante");$("#coachBtn").dataset.kind="sante";
+  /* ---------- Init (appelé seulement une fois la porte auth franchie) ---------- */
+  var booted=false;
+  function bootApp(){
+    if(booted)return;booted=true;
+    renderPilulier();renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
+    initSportBuilder();
+    loadActivities();
+    $("#tStart").addEventListener("click",timerStart);
+    $("#tLap").addEventListener("click",timerLap);
+    $("#tReset").addEventListener("click",timerReset);
+    $("#tFinish").addEventListener("click",timerFinish);
+    $("#logSearch").addEventListener("input",logSearchInput);
+    $("#logSave").addEventListener("click",logSave);
+    /* Session déjà réelle et confirmée à ce stade (porte auth passée) : charge direct. */
+    ensureAnon().then(function(){
+      if(AUTH.ready){
+        loadTodayNutrition();
+        loadSportPersonal();
+        loadHistory();
+      }
+    });
+    renderBio();renderBilans();renderLabs();renderBasket();renderCatalogue();
+    $("#coachBtn").innerHTML=mascotSVG("sante");$("#coachBtn").dataset.kind="sante";
+    setTimeout(animateLab,120);labAnimated=true;
+  }
   syncThemeSwitch();
-  setTimeout(animateLab,120);labAnimated=true;
+
+  /* ============================================================
+     PORTE D'ENTRÉE RÉELLE — connexion / création de compte / onboarding
+     (§ demande commercialisation juillet 2026, même logique que Auth.tsx
+     et Onboarding.tsx côté app React Native : session anonyme liée via
+     updateUser({email,password}) pour ne perdre aucune donnée déjà écrite ;
+     questionnaire 4 étapes -> profiles + nutrition_goals, calcul BMR/TDEE
+     Mifflin-St Jeor, identique à lib/onboarding.ts.)
+     ============================================================ */
+  var ACTIVITY_MULT={sedentaire:1.2,modere:1.375,actif:1.55,tres_actif:1.725};
+  function ageFromISO(iso){var d=new Date(iso),n=new Date();var a=n.getUTCFullYear()-d.getUTCFullYear();
+    var m=n.getUTCMonth()-d.getUTCMonth();if(m<0||(m===0&&n.getUTCDate()<d.getUTCDate()))a--;return a;}
+  function computeTargets(o){
+    var age=ageFromISO(o.dob);
+    var base=10*o.weight+6.25*o.height-5*age;
+    var bmr=o.sex==="male"?base+5:base-161;
+    var tdee=bmr*ACTIVITY_MULT[o.activity];
+    var kcal=o.goal==="perte_de_poids"?Math.round(tdee*0.85):o.goal==="prise_de_masse"?Math.round(tdee*1.12):Math.round(tdee);
+    var protein=Math.round(o.weight*1.8);
+    var fat=Math.round((kcal*0.27)/9);
+    var carb=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));
+    var fiber=Math.round((kcal/1000)*14);
+    return {kcal:kcal,protein_g:protein,carb_g:carb,fat_g:fat,fiber_g:fiber};
+  }
+
+  var gMode="signup";
+  var gOnboard={sex:null,day:"",month:"",year:"",weight:"",height:"",activity:null,goal:null};
+  var gStep=0;
+  function gShow(id){["gAuthCard","gConfirmCard","gOnboardCard"].forEach(function(c){$("#"+c).style.display=(c===id)?"block":"none";});}
+  function gErr(id,msg){var e=$("#"+id);if(msg){e.textContent=msg;e.style.display="block";}else{e.style.display="none";}}
+
+  $("#gAuthToggle").addEventListener("click",function(){
+    gMode=gMode==="signup"?"login":"signup";
+    $("#gAuthEyebrow").textContent=gMode==="signup"?"Créer un compte":"Connexion";
+    $("#gAuthTitle").textContent=gMode==="signup"?"Rejoins The One Lab":"Content de te revoir";
+    $("#gAuthSubmit").textContent=gMode==="signup"?"Créer mon compte":"Se connecter";
+    $("#gAuthToggle").textContent=gMode==="signup"?"Se connecter":"Créer un compte";
+    gErr("gAuthErr",null);
+  });
+
+  $("#gAuthSubmit").addEventListener("click",async function(){
+    var email=$("#gEmail").value.trim(),pass=$("#gPassword").value;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return gErr("gAuthErr","Adresse email invalide.");
+    if(pass.length<8)return gErr("gAuthErr","Mot de passe : 8 caractères minimum.");
+    gErr("gAuthErr",null);
+    $("#gAuthSubmit").disabled=true;
+    try{
+      if(!sb){gErr("gAuthErr","Connexion à Supabase indisponible.");return;}
+      if(gMode==="login"){
+        var r=await sb.auth.signInWithPassword({email:email,password:pass});
+        if(r.error)return gErr("gAuthErr",r.error.message);
+        await runGate();
+        return;
+      }
+      var s=await sb.auth.getSession();
+      var isAnon=s.data.session&&s.data.session.user.is_anonymous===true;
+      var res=isAnon?await sb.auth.updateUser({email:email,password:pass}):await sb.auth.signUp({email:email,password:pass});
+      if(res.error)return gErr("gAuthErr",res.error.message);
+      var fresh=await sb.auth.getSession();
+      if(fresh.data.session&&fresh.data.session.user.is_anonymous===false){await runGate();return;}
+      $("#gConfirmMsg").textContent="On a envoyé un lien de confirmation à "+email+". Clique dessus, puis reviens ici.";
+      gShow("gConfirmCard");
+    }catch(e){gErr("gAuthErr",String(e));}
+    finally{$("#gAuthSubmit").disabled=false;}
+  });
+
+  $("#gConfirmRecheck").addEventListener("click",async function(){
+    $("#gConfirmRecheck").disabled=true;
+    try{
+      await sb.auth.refreshSession();
+      var fresh=await sb.auth.getSession();
+      if(fresh.data.session&&fresh.data.session.user.is_anonymous===false){await runGate();}
+      else{gErr("gConfirmErr","Pas encore confirmé — vérifie ta boîte mail (et les spams).");}
+    }finally{$("#gConfirmRecheck").disabled=false;}
+  });
+
+  var ACT_OPTS=[["sedentaire","Sédentaire"],["modere","Modéré"],["actif","Actif"],["tres_actif","Très actif"]];
+  var GOAL_OPTS=[["perte_de_poids","Perte de poids"],["prise_de_masse","Prise de masse"],["maintien","Maintien"],["renforcement_musculaire","Renforcement musculaire"]];
+
+  function pillsHtml(opts,groupKey){
+    return opts.map(function(o){return '<button type="button" class="gpill" data-group="'+groupKey+'" data-val="'+o[0]+'">'+o[1]+'</button>';}).join("");
+  }
+  function renderOnboardStep(){
+    $("#gStepLabel").textContent="ÉTAPE "+(gStep+1)+" / 4";
+    $("#gStepBack").style.display=gStep>0?"block":"none";
+    gErr("gOnboardErr",null);
+    var body="";
+    if(gStep===0){
+      body='<div class="geyebrow">Pour interpréter tes marqueurs</div><h2>Ton sexe biologique</h2>'
+        +'<p class="ghelp">Certaines zones optimales (testostérone, HDL, ferritine…) diffèrent selon le sexe biologique.</p>'
+        +'<div class="gpills">'+pillsHtml([["male","Homme"],["female","Femme"]],"sex")+'</div>';
+    }else if(gStep===1){
+      body='<div class="geyebrow">Pour le calcul de tes besoins</div><h2>Ta date de naissance</h2>'
+        +'<div class="grow"><input id="gDay" placeholder="JJ" inputmode="numeric" maxlength="2" value="'+gOnboard.day+'">'
+        +'<input id="gMonth" placeholder="MM" inputmode="numeric" maxlength="2" value="'+gOnboard.month+'">'
+        +'<input id="gYear" placeholder="AAAA" inputmode="numeric" maxlength="4" value="'+gOnboard.year+'"></div>';
+    }else if(gStep===2){
+      body='<div class="geyebrow">Pour tes objectifs nutrition</div><h2>Poids, taille, activité</h2>'
+        +'<div class="grow"><input id="gWeight" placeholder="Poids (kg)" inputmode="decimal" value="'+gOnboard.weight+'">'
+        +'<input id="gHeight" placeholder="Taille (cm)" inputmode="decimal" value="'+gOnboard.height+'"></div>'
+        +'<p class="ghelp" style="margin-top:10px">Niveau d\'activité</p><div class="gpills">'+pillsHtml(ACT_OPTS,"activity")+'</div>';
+    }else if(gStep===3){
+      body='<div class="geyebrow">Pour ta séance et ton panier</div><h2>Ton objectif principal</h2>'
+        +'<div class="gpills">'+pillsHtml(GOAL_OPTS,"goal")+'</div>';
+    }
+    $("#gStepBody").innerHTML=body;
+    $("#gOnboardNext").textContent=gStep<3?"Continuer":"Terminer";
+    if(gStep===0||gStep===2||gStep===3){
+      $$("#gStepBody .gpill").forEach(function(btn){
+        var g=btn.dataset.group;
+        if(gOnboard[g]===btn.dataset.val)btn.classList.add("sel");
+        btn.addEventListener("click",function(){
+          gOnboard[g]=btn.dataset.val;
+          $$("#gStepBody .gpill[data-group='"+g+"']").forEach(function(b){b.classList.toggle("sel",b===btn);});
+        });
+      });
+    }
+  }
+  $("#gStepBack").addEventListener("click",function(){if(gStep>0){gStep--;renderOnboardStep();}});
+  $("#gOnboardNext").addEventListener("click",async function(){
+    if(gStep===1){gOnboard.day=$("#gDay").value.trim();gOnboard.month=$("#gMonth").value.trim();gOnboard.year=$("#gYear").value.trim();}
+    if(gStep===2){gOnboard.weight=$("#gWeight").value.trim();gOnboard.height=$("#gHeight").value.trim();}
+    if(gStep===0&&!gOnboard.sex)return gErr("gOnboardErr","Choisis une option pour continuer.");
+    if(gStep===1){
+      var d=parseInt(gOnboard.day,10),m=parseInt(gOnboard.month,10),y=parseInt(gOnboard.year,10);
+      if(!d||!m||!y||d<1||d>31||m<1||m>12||y<1920||y>(new Date().getFullYear()-13))return gErr("gOnboardErr","Date de naissance invalide.");
+    }
+    if(gStep===2){
+      var w=parseFloat(gOnboard.weight.replace(",",".")),h=parseFloat(gOnboard.height.replace(",","."));
+      if(!w||w<=20||w>=400)return gErr("gOnboardErr","Poids invalide (kg).");
+      if(!h||h<=80||h>=250)return gErr("gOnboardErr","Taille invalide (cm).");
+      if(!gOnboard.activity)return gErr("gOnboardErr","Choisis un niveau d'activité.");
+    }
+    if(gStep===3&&!gOnboard.goal)return gErr("gOnboardErr","Choisis un objectif pour continuer.");
+    gErr("gOnboardErr",null);
+    if(gStep<3){gStep++;renderOnboardStep();return;}
+    $("#gOnboardNext").disabled=true;
+    try{
+      var dob=gOnboard.year.padStart(4,"0")+"-"+gOnboard.month.padStart(2,"0")+"-"+gOnboard.day.padStart(2,"0");
+      var weight=parseFloat(gOnboard.weight.replace(",","."));
+      var height=parseFloat(gOnboard.height.replace(",","."));
+      var targets=computeTargets({sex:gOnboard.sex,dob:dob,weight:weight,height:height,activity:gOnboard.activity,goal:gOnboard.goal});
+      var sess=await sb.auth.getSession();
+      var uid=sess.data.session&&sess.data.session.user.id;
+      if(!uid){gErr("gOnboardErr","Session perdue — recharge la page.");return;}
+      var up=await sb.from("profiles").update({sex:gOnboard.sex,date_of_birth:dob,weight_kg:weight,height_cm:height,
+        activity_level:gOnboard.activity,sport_goal:gOnboard.goal,sport_goal_set_at:new Date().toISOString(),onboarding_done:true}).eq("id",uid);
+      if(up.error){gErr("gOnboardErr",up.error.message);return;}
+      var ug=await sb.from("nutrition_goals").upsert({user_id:uid,kcal:targets.kcal,protein_g:targets.protein_g,
+        carb_g:targets.carb_g,fat_g:targets.fat_g,fiber_g:targets.fiber_g});
+      if(ug.error){gErr("gOnboardErr",ug.error.message);return;}
+      revealApp();
+    }catch(e){gErr("gOnboardErr",String(e));}
+    finally{$("#gOnboardNext").disabled=false;}
+  });
+
+  function revealApp(){
+    $("#authGate").style.display="none";
+    $("#appRoot").style.display="";
+    bootApp();
+  }
+
+  async function runGate(){
+    if(!sb){gShow("gAuthCard");return;}
+    var s=await sb.auth.getSession();
+    var sess=s.data.session;
+    if(!sess||sess.user.is_anonymous!==false){gShow("gAuthCard");return;}
+    var prof=await sb.from("profiles").select("onboarding_done").eq("id",sess.user.id).maybeSingle();
+    if(prof.data&&prof.data.onboarding_done){revealApp();return;}
+    gStep=0;renderOnboardStep();gShow("gOnboardCard");
+  }
+  runGate();
 })();
 </script>
