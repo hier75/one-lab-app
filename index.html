@@ -476,7 +476,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     <section id="lab" class="screen active" role="tabpanel" aria-label="Laboratoire">
       <div class="hello">
         <div class="k">Bonjour,</div>
-        <div class="n">Alex</div>
+        <div class="n" id="greetName">Alex</div>
       </div>
 
       <div class="card" id="pilulierCard">
@@ -490,25 +490,34 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
         <div id="pilList" style="margin-top:6px"></div>
       </div>
 
+      <div class="card" id="labEmptyCard" style="display:none">
+        <div class="eyebrow">Score de Vitalité</div>
+        <div style="font-size:17px;font-weight:600;color:var(--text-1);margin-top:6px">Pas encore de score</div>
+        <p style="font-size:13.5px;line-height:1.5;color:var(--text-2);margin-top:8px" id="labEmptyMsg"></p>
+      </div>
+
+      <div id="labScoreSection">
       <div class="card score-wrap">
         <div class="ring">
           <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="84"/><circle class="prog" id="scoreRing" cx="100" cy="100" r="84"/></svg>
           <div class="c">
             <div class="val" id="scoreVal">0</div>
             <div class="lab">Score de Vitalité</div>
-            <div class="delta"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5l7 12H5z"/></svg><span id="scoreDelta">+3 aujourd'hui</span></div>
+            <div class="delta" id="scoreDeltaWrap"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5l7 12H5z"/></svg><span id="scoreDelta">+3 aujourd'hui</span></div>
           </div>
         </div>
-        <div class="completeness">Basé sur <b>88 %</b> de vos données · bilan du 12 mai</div>
+        <div class="completeness" id="completenessText">Basé sur <b>88 %</b> de vos données · bilan du 12 mai</div>
       </div>
 
       <div class="card">
         <div class="eyebrow">Par domaine</div>
         <div class="domains" id="domains"></div>
       </div>
+      </div>
 
-      <div class="section-title"><h2>Aujourd'hui · Oura</h2><span class="chip-src"><span class="dot"></span>Synchronisé</span></div>
+      <div class="section-title"><h2 id="wearableTitle">Aujourd'hui</h2><span class="chip-src" id="wearableChip" style="display:none"><span class="dot"></span>Synchronisé</span></div>
       <div class="mgrid" id="wearables"></div>
+      <p style="font-size:12.5px;color:var(--text-2);display:none" id="wearableEmpty">Aucun appareil connecté pour l'instant — connecte une montre pour voir tes données ici.</p>
 
       <p class="foot">Aperçu · données de démonstration</p>
     </section>
@@ -957,38 +966,101 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     var done=DATA.pilulier.filter(function(p){return p.done;}).length;
     $("#pilCount").textContent=done+"/"+DATA.pilulier.length;
   }
-  function renderDomains(){
-    var c=$("#domains");
-    DATA.domains.forEach(function(d){
-      var r=el("div","drow",'<span class="dl">'+d[0]+'</span><div class="dbar"><i></i></div><span class="dv">'+d[1]+'</span>');
-      c.appendChild(r);
-    });
-  }
+  var DOMAIN_LABELS={metabolique:"Métabolique",cardiovasculaire:"Cardiovasculaire",inflammatoire:"Inflammatoire",hormonal:"Hormonal",recuperation:"Récupération"};
+  var DOMAIN_ORDER=["metabolique","cardiovasculaire","inflammatoire","hormonal","recuperation"];
   function wIcon(ic){
     var p={heart:'<path d="M12 21C7 17 4 14 4 9.5 4 7 6 5 8.5 5c1.5 0 2.7.8 3.5 2 .8-1.2 2-2 3.5-2C21 5 20 12 12 21z"/>',
       pulse:'<path d="M3 12h4l2-5 4 10 2-5h6"/>',moon:'<path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/>',
       bolt:'<path d="M13 2L4 14h6l-1 8 9-12h-6z"/>'}[ic];
     return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
   }
-  function renderWearables(){
-    var c=$("#wearables");
-    DATA.wearables.forEach(function(m){
-      var e=el("div","metric",'<div class="mk">'+wIcon(m.ic)+m.k+'</div><div class="mv">'+m.v+'<small>'+m.u+'</small></div>'+(m.d?'<div class="md">'+m.d+'</div>':'<div class="md" style="color:var(--text-3)">dans ta norme</div>'));
-      c.appendChild(e);
+  function renderDomains(domainScores){
+    var c=$("#domains");c.innerHTML="";
+    var byDomain={};
+    (domainScores||[]).forEach(function(d){byDomain[d.domain]=d.score;});
+    DOMAIN_ORDER.forEach(function(key){
+      var label=DOMAIN_LABELS[key], score=byDomain[key];
+      var inner = (score==null)
+        ? '<span class="dl">'+label+'</span><span style="flex:1;font-size:12.5px;font-style:italic;color:var(--text-3)">Non renseigné</span>'
+        : '<span class="dl">'+label+'</span><div class="dbar"><i style="width:'+Math.round(score)+'%"></i></div><span class="dv">'+Math.round(score)+'</span>';
+      var r=el("div","drow",inner);
+      c.appendChild(r);
     });
   }
-  function animateLab(){
-    var C=527.79, target=82;
+  function renderWearables(w){
+    var c=$("#wearables");c.innerHTML="";
+    var title=$("#wearableTitle"), chip=$("#wearableChip"), empty=$("#wearableEmpty");
+    if(!w){
+      title.textContent="Aujourd'hui";chip.style.display="none";empty.style.display="block";
+      return;
+    }
+    empty.style.display="none";
+    title.textContent="Aujourd'hui"+(w.provider?" · "+w.provider:"");chip.style.display="inline-flex";
+    var items=[];
+    if(w.hrv!=null)items.push({k:"VFC",v:w.hrv,u:" ms",ic:"pulse"});
+    if(w.resting_hr!=null)items.push({k:"FC repos",v:w.resting_hr,u:" bpm",ic:"heart"});
+    if(w.sleep_hours!=null)items.push({k:"Sommeil",v:w.sleep_hours,u:" h",ic:"moon"});
+    if(w.readiness!=null)items.push({k:"Readiness",v:w.readiness,u:"",ic:"bolt"});
+    items.forEach(function(m){
+      var e=el("div","metric",'<div class="mk">'+wIcon(m.ic)+m.k+'</div><div class="mv">'+m.v+'<small>'+m.u+'</small></div>');
+      c.appendChild(e);
+    });
+    if(items.length===0){title.textContent="Aujourd'hui";chip.style.display="none";empty.style.display="block";}
+  }
+  function animateLab(score,delta,completenessPct,dateStr){
+    var C=527.79, target=Math.max(0,Math.min(100,Math.round(score)));
     var ring=$("#scoreRing"), val=$("#scoreVal");
     requestAnimationFrame(function(){ ring.style.strokeDashoffset = C*(1-target/100); });
-    var n=0, step=rm?target:0;
+    var n=0;
     if(rm){val.textContent=target;}
+    else{ var t=setInterval(function(){n+=2; if(n>=target){n=target;clearInterval(t);} val.textContent=n;},22); }
+    $$(".dbar i").forEach(function(b){ var w=b.style.width; setTimeout(function(){ b.style.width=w; },120); });
+    var deltaWrap=$("#scoreDeltaWrap");
+    if(delta==null){deltaWrap.style.display="none";}
     else{
-      var t=setInterval(function(){n+=2; if(n>=target){n=target;clearInterval(t);} val.textContent=n;},22);
+      deltaWrap.style.display="inline-flex";
+      $("#scoreDelta").textContent=(delta>=0?"+":"")+delta+" depuis la dernière fois";
+      deltaWrap.querySelector("path").parentNode.style.transform = delta<0 ? "rotate(180deg)" : "";
     }
-    $$(".dbar i").forEach(function(b,i){ setTimeout(function(){ b.style.width=DATA.domains[i][1]+"%"; }, 120+i*90); });
+    $("#completenessText").innerHTML='Basé sur <b>'+completenessPct+' %</b> de tes données · calculé le '+dateStr;
   }
-  function $$(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));}
+  async function loadVitalityScore(){
+    await ensureAnon();
+    if(!sb||!AUTH.user){$("#labScoreSection").style.display="none";$("#labEmptyCard").style.display="block";
+      $("#labEmptyMsg").textContent="Connexion en cours…";return;}
+    var prof=await sb.from("profiles").select("display_name").eq("id",AUTH.user.id).maybeSingle();
+    var name=(prof.data&&prof.data.display_name&&prof.data.display_name.trim())||
+      (AUTH.user.email?AUTH.user.email.split("@")[0]:"toi");
+    name=name.charAt(0).toUpperCase()+name.slice(1);
+    $("#greetName").textContent=name;
+
+    var prevQ=await sb.from("health_vitality_scores").select("score").eq("user_id",AUTH.user.id).order("computed_at",{ascending:false}).limit(1);
+    var previousScore=(prevQ.data&&prevQ.data.length>0)?Number(prevQ.data[0].score):null;
+
+    var r=await sb.functions.invoke("vitality-score",{method:"POST",body:{}});
+    if(r.error){
+      var status=r.error.context&&r.error.context.status;
+      $("#labScoreSection").style.display="none";
+      $("#labEmptyCard").style.display="block";
+      $("#labEmptyMsg").textContent = status===422
+        ? "Ajoute ton premier bilan sanguin pour calculer ton score — aucune valeur enregistrée pour l'instant."
+        : "Impossible de calculer ton score pour le moment — réessaie plus tard.";
+      renderWearables(null);
+      return;
+    }
+    var result=r.data;
+    $("#labScoreSection").style.display="";
+    $("#labEmptyCard").style.display="none";
+    renderDomains(result.domainScores);
+    var delta = previousScore!=null ? Math.round(result.vitalityScore-previousScore) : null;
+    var dateStr=new Date(result.generated_at).toLocaleDateString("fr-FR",{day:"numeric",month:"long"});
+    animateLab(result.vitalityScore,delta,Math.round(result.completeness*100),dateStr);
+
+    var today=new Date().toISOString().slice(0,10);
+    var wd=await sb.from("wearable_daily").select("hrv,resting_hr,sleep_hours,readiness,provider").eq("user_id",AUTH.user.id).eq("day",today).maybeSingle();
+    renderWearables(wd.data||null);
+  }
+
 
   /* ---------- Render : Sport ---------- */
   function renderExercises(){
@@ -1835,7 +1907,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   var booted=false;
   function bootApp(){
     if(booted)return;booted=true;
-    renderPilulier();renderDomains();renderWearables();renderExercises();renderMacros();renderMeals();renderKcalRing();
+    renderPilulier();renderExercises();renderMacros();renderMeals();renderKcalRing();
     initSportBuilder();
     loadActivities();
     $("#tStart").addEventListener("click",timerStart);
@@ -1854,7 +1926,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     });
     renderBio();renderBilans();renderLabs();renderBasket();renderCatalogue();
     $("#coachBtn").innerHTML=mascotSVG("sante");$("#coachBtn").dataset.kind="sante";
-    setTimeout(animateLab,120);labAnimated=true;
+    labAnimated=true;loadVitalityScore();
   }
   syncThemeSwitch();
 
