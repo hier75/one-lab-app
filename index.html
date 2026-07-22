@@ -2108,13 +2108,11 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
 
   async function runGate(){
-    if(!sb){gShow("gAuthCard");return;}
-    var s=await sb.auth.getSession();
-    var sess=s.data.session;
-    if(!sess||sess.user.is_anonymous!==false){gShow("gAuthCard");return;}
-    var prof=await sb.from("profiles").select("onboarding_done").eq("id",sess.user.id).maybeSingle();
-    if(prof.data&&prof.data.onboarding_done){revealApp();return;}
-    gStep=0;renderOnboardStep();gShow("gOnboardCard");
+    // Porte d'authentification désactivée sur ce lien de test (§ demande explicite —
+    // gêne la vue rapide de l'app). Reste active sur la vraie app React Native.
+    // La session anonyme (ensureAnon, dans bootApp) continue de tourner en fond,
+    // donc les écritures en base fonctionnent toujours normalement ici.
+    revealApp();
   }
   runGate();
 })();
