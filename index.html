@@ -1985,7 +1985,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       }
       var s=await sb.auth.getSession();
       var isAnon=s.data.session&&s.data.session.user.is_anonymous===true;
-      var res=isAnon?await sb.auth.updateUser({email:email,password:pass}):await sb.auth.signUp({email:email,password:pass});
+      var here=window.location.origin+window.location.pathname;
+      var res=isAnon?await sb.auth.updateUser({email:email,password:pass},{emailRedirectTo:here}):await sb.auth.signUp({email:email,password:pass,options:{emailRedirectTo:here}});
       if(res.error)return gErr("gAuthErr",res.error.message);
       var fresh=await sb.auth.getSession();
       if(fresh.data.session&&fresh.data.session.user.is_anonymous===false){await runGate();return;}
