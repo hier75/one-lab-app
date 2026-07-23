@@ -630,10 +630,10 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
           <div class="c">
             <div class="val" id="kcalNow">0</div>
             <div class="lab">kcal</div>
-            <div class="goal" id="kcalGoal">/ 2 200</div>
+            <div class="goal" id="kcalGoal">Chargement…</div>
           </div>
         </div>
-        <div class="kcal-remaining" id="kcalRemaining">2 200 kcal restantes</div>
+        <div class="kcal-remaining" id="kcalRemaining">Chargement…</div>
         <div class="macro-rings" id="macros"></div>
       </div>
 
@@ -883,12 +883,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     exercises:[["Squat","4 × 10"],["Développé couché","4 × 8"],["Rowing haltère","4 × 10"],["Fentes marchées","3 × 12"],["Gainage","3 × 45 s"]],
     bilans:[["12 mai 2026","Cerballiance · 17 marqueurs","🧪"],["3 févr. 2026","Biogroup · 15 marqueurs","🧪"]],
     labs:[["Cerballiance Paris 11","450 m · ouvert","01 43 79 ··"],["Biogroup République","1,2 km · ouvert","01 42 08 ··"],["Laboratoire Voltaire","1,8 km","01 43 71 ··"]],
-    meals:[
-      {n:"Flocons d'avoine & myrtilles",s:"Petit-déjeuner · 320 g",k:"420",e:true,ic:"🥣"},
-      {n:"Poulet, quinoa, brocoli",s:"Déjeuner · 450 g",k:"610",e:true,ic:"🍗"},
-      {n:"Yaourt grec & amandes",s:"Collation · 180 g",k:"290",e:false,ic:"🥛"}
-    ],
-    macros:[{l:"Protéines",u:"g",v:98,t:150},{l:"Glucides",u:"g",v:112,t:240},{l:"Lipides",u:"g",v:54,t:70},{l:"Fibres",u:"g",v:21,t:30}],
+    meals:[],
+    macros:[{l:"Protéines",u:"g",v:0,t:0},{l:"Glucides",u:"g",v:0,t:0},{l:"Lipides",u:"g",v:0,t:0},{l:"Fibres",u:"g",v:0,t:0}],
     basket:[
       {e:"🐟",n:"Oméga-3 TG concentré",p:"Ton ApoB (92) et ton LDL (118) sont au-dessus de ta zone optimale."},
       {e:"☀️",n:"Vitamine D3 + K2",p:"Ta vitamine D est basse — 28 ng/mL, pour une zone optimale de 40 à 60."},
@@ -1519,7 +1515,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     var sums=[0,0,0,0];
     q.data.forEach(function(x){sums[0]+=Number(x.protein_g)||0;sums[1]+=Number(x.carb_g)||0;sums[2]+=Number(x.fat_g)||0;sums[3]+=Number(x.fiber_g)||0;});
     sums.forEach(function(s,i){DATA.macros[i].v=Math.round(s*10)/10;});
-    $("#kcalGoal").textContent="/ "+KCAL_TARGET.toLocaleString("fr-FR");
+    $("#kcalGoal").textContent = KCAL_TARGET>0 ? "/ "+KCAL_TARGET.toLocaleString("fr-FR") : "Objectif non défini";
     renderMeals(); renderMacros(); renderKcalRing();
     return true;
   }
@@ -1527,40 +1523,44 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   /* ---------- Render : Nutrition ---------- */
   // Anneaux ronds pour le calorique global ET chaque catégorie de nutriment,
   // même langage visuel que l'anneau du Score de Vitalité (§9.1).
-  var KCAL_TARGET=2200, KCAL_C=502.65, MACRO_C=201.06;
+  var KCAL_TARGET=0, KCAL_C=502.65, MACRO_C=201.06;
   function renderMacros(){
     var c=$("#macros");c.innerHTML="";
     DATA.macros.forEach(function(m,i){
       c.appendChild(el("div","macro-ring-cell",
         '<div class="ring-macro"><svg viewBox="0 0 76 76"><circle class="track" cx="38" cy="38" r="32"/><circle class="prog" id="macroRing'+i+'" cx="38" cy="38" r="32"/></svg>'+
-        '<div class="c"><div class="val" id="macroVal'+i+'">0</div><div class="tgt">/'+m.t+m.u+'</div></div></div>'+
+        '<div class="c"><div class="val" id="macroVal'+i+'">0</div><div class="tgt">/'+(m.t||'–')+m.u+'</div></div></div>'+
         '<div class="lab">'+m.l+'</div>'));
     });
     animateMacroRings();
   }
   function animateMacroRings(){
     DATA.macros.forEach(function(m,i){
-      var pct=Math.max(0,Math.min(m.v/m.t,1));
+      var pct=m.t>0 ? Math.max(0,Math.min(m.v/m.t,1)) : 0;
       var ring=$("#macroRing"+i), val=$("#macroVal"+i);
       requestAnimationFrame(function(){ ring.style.strokeDashoffset=MACRO_C*(1-pct); });
       val.textContent=m.v;
     });
   }
   function renderKcalRing(){
-    var pct=Math.max(0,Math.min(kcalTotal/KCAL_TARGET,1));
+    var pct=KCAL_TARGET>0 ? Math.max(0,Math.min(kcalTotal/KCAL_TARGET,1)) : 0;
     var ring=$("#kcalRing");
     requestAnimationFrame(function(){ ring.style.strokeDashoffset=KCAL_C*(1-pct); });
     $("#kcalNow").textContent=kcalTotal.toLocaleString("fr-FR");
-    var remaining=KCAL_TARGET-kcalTotal;
-    $("#kcalRemaining").textContent = remaining>=0
-      ? remaining.toLocaleString("fr-FR")+" kcal restantes"
-      : Math.abs(remaining).toLocaleString("fr-FR")+" kcal au-dessus de l'objectif";
+    if(KCAL_TARGET>0){
+      var remaining=KCAL_TARGET-kcalTotal;
+      $("#kcalRemaining").textContent = remaining>=0
+        ? remaining.toLocaleString("fr-FR")+" kcal restantes"
+        : Math.abs(remaining).toLocaleString("fr-FR")+" kcal au-dessus de l'objectif";
+    } else {
+      $("#kcalRemaining").textContent = "Termine ton profil pour fixer un objectif calorique.";
+    }
   }
   function renderMeals(){var c=$("#mealList");c.innerHTML="";
     DATA.meals.forEach(function(m){
       c.appendChild(el("div","meal",'<div class="mi">'+m.ic+'</div><div class="mt2"><b>'+m.n+(m.e?'<span class="est">estimation</span>':'')+'</b><span>'+m.s+'</span></div><div class="mk2">'+m.k+'</div>'));
     });}
-  var kcalTotal=1320;
+  var kcalTotal=0;
 
   /* ---------- Render : Santé ---------- */
   function renderBio(){
