@@ -1492,17 +1492,15 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       qrScanner.start(
         {facingMode:"environment"},
         {
-          fps:10,
-          qrbox:{width:280,height:160},
-          // Contraintes vidéo explicites : la résolution par défaut du navigateur
-          // est souvent trop basse pour lire les fines lignes d'un vrai code-barre
-          // (contrairement à un QR code, plus tolérant). L'autofocus continu aide
-          // aussi beaucoup à courte distance (produit tenu près de la caméra).
-          videoConstraints:{
-            facingMode:"environment",
-            width:{ideal:1280}, height:{ideal:720},
-            advanced:[{focusMode:"continuous"}]
-          }
+          // fps=2 : c'est la valeur PAR DÉFAUT de la lib elle-même (pas 10, notre
+          // erreur précédente). Un décodage de code-barre 1D est plus lourd qu'un
+          // QR code ; à fps trop élevé chaque frame est interrompue avant d'avoir
+          // fini son analyse -> zéro détection, silencieusement, même caméra ouverte.
+          fps:2,
+          // Pas de qrbox : toute la zone visible sert de zone de scan (au lieu
+          // d'une zone réduite qui pouvait ne pas correspondre à la zone réellement
+          // cadrée par l'utilisateur).
+          videoConstraints:{ facingMode:"environment", width:{ideal:1280}, height:{ideal:720} }
         },
         function(decoded){ onBarcodeDetected(decoded); },
         function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
