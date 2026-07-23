@@ -806,7 +806,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="vendor/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   /* ============================================================
@@ -1476,22 +1476,30 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     if(view==="search") setTimeout(function(){ $("#sheetFoodSearch").focus(); },150);
   }
   function startScanner(){
-    if(scannerRunning || typeof Html5Qrcode==="undefined") return;
+    if(scannerRunning) return;
+    if(typeof Html5Qrcode==="undefined"){
+      $("#scanStatus").textContent="Bibliothèque caméra indisponible — utilise la saisie manuelle ci-dessous.";
+      return;
+    }
     $("#scanStatus").textContent="Ouverture de la caméra…";
-    qrScanner = new Html5Qrcode("scanReader");
-    var formats = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-                   Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E];
-    qrScanner.start(
-      {facingMode:"environment"},
-      {fps:10, qrbox:{width:260,height:140}, formatsToSupport:formats},
-      function(decoded){ onBarcodeDetected(decoded); },
-      function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
-    ).then(function(){
-      scannerRunning=true;
-      $("#scanStatus").textContent="Vise le code-barre du produit.";
-    }).catch(function(err){
+    try{
+      qrScanner = new Html5Qrcode("scanReader");
+      var formats = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+                     Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E];
+      qrScanner.start(
+        {facingMode:"environment"},
+        {fps:10, qrbox:{width:260,height:140}, formatsToSupport:formats},
+        function(decoded){ onBarcodeDetected(decoded); },
+        function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
+      ).then(function(){
+        scannerRunning=true;
+        $("#scanStatus").textContent="Vise le code-barre du produit.";
+      }).catch(function(err){
+        $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
+      });
+    }catch(err){
       $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
-    });
+    }
   }
   function stopScanner(){
     if(qrScanner && scannerRunning){
