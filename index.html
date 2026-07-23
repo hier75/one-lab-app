@@ -1483,17 +1483,32 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     }
     $("#scanStatus").textContent="Ouverture de la caméra…";
     try{
-      qrScanner = new Html5Qrcode("scanReader");
+      // formatsToSupport doit être passé ICI (au constructeur), pas à start() —
+      // c'était l'erreur : la lib l'ignorait silencieusement et retombait sur
+      // son réglage par défaut, moins précis pour les codes-barres 1D.
       var formats = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
                      Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E];
+      qrScanner = new Html5Qrcode("scanReader", { formatsToSupport: formats, verbose: false });
       qrScanner.start(
         {facingMode:"environment"},
-        {fps:10, qrbox:{width:260,height:140}, formatsToSupport:formats},
+        {
+          fps:10,
+          qrbox:{width:280,height:160},
+          // Contraintes vidéo explicites : la résolution par défaut du navigateur
+          // est souvent trop basse pour lire les fines lignes d'un vrai code-barre
+          // (contrairement à un QR code, plus tolérant). L'autofocus continu aide
+          // aussi beaucoup à courte distance (produit tenu près de la caméra).
+          videoConstraints:{
+            facingMode:"environment",
+            width:{ideal:1280}, height:{ideal:720},
+            advanced:[{focusMode:"continuous"}]
+          }
+        },
         function(decoded){ onBarcodeDetected(decoded); },
         function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
       ).then(function(){
         scannerRunning=true;
-        $("#scanStatus").textContent="Vise le code-barre du produit.";
+        $("#scanStatus").textContent="Vise le code-barre, bien à plat, à ~15 cm de la caméra.";
       }).catch(function(err){
         $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
       });
