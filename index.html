@@ -451,7 +451,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     <button class="gbtn" id="gConfirmRecheck">J'ai confirmé</button>
   </div>
   <div class="gcard" id="gOnboardCard" style="display:none">
-    <div class="gstep" id="gStepLabel">ÉTAPE 1 / 4</div>
+    <div class="gbrand" style="margin-bottom:16px"><svg width="44" height="44" viewBox="0 0 40 40"><rect x="6" y="3" width="28" height="34" rx="5.5" fill="#C1272D"/><rect x="18" y="10" width="4" height="20" rx="1" fill="#fff"/><rect x="10" y="18" width="20" height="4" rx="1" fill="#fff"/></svg><b style="font-size:18px">the one lab</b></div>
+    <div class="gstep" id="gStepLabel">ÉTAPE 1 / 5</div>
     <div id="gStepBack" class="gback" style="display:none">← Retour</div>
     <div id="gStepBody"></div>
     <div class="gerr" id="gOnboardErr" style="display:none"></div>
@@ -467,7 +468,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     </div>
     <div class="hdr-actions">
       <button class="icon-btn" id="btnConnect" aria-label="Connecter un appareil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-      <button class="avatar" id="btnProfile" aria-label="Profil"><span>N</span></button>
+      <button class="avatar" id="btnProfile" aria-label="Profil"><span id="avatarInitial">N</span></button>
     </div>
   </header>
 
@@ -731,8 +732,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 <div class="sheet" id="sheetProfile" role="dialog" aria-label="Profil">
   <div class="grab"></div>
-  <div class="coach-hd"><div class="avatar" style="width:52px;height:52px;font-size:19px"><span>N</span></div>
-    <div><b style="font-size:17px">Alex Martin</b><div style="font-size:12.5px;color:var(--text-2)">Membre · abonnement <b style="color:var(--accent-ink)">Performance</b></div></div></div>
+  <div class="coach-hd"><div class="avatar" style="width:52px;height:52px;font-size:19px"><span id="profileAvatarBig">N</span></div>
+    <div><b style="font-size:17px" id="profileName">Alex Martin</b><div style="font-size:12.5px;color:var(--text-2)">Membre · abonnement <b style="color:var(--accent-ink)" id="profileTier">Performance</b></div></div></div>
   <div class="section-title" style="margin:8px 2px 4px"><h2>Appareils connectés</h2></div>
   <div class="settings-row"><span class="sl">⌚ Oura Ring</span><span class="sr"><span class="dot"></span>Connecté</span></div>
   <div class="settings-row"><span class="sl">📱 Apple Santé</span><span class="sr"><button class="link" data-connect="Apple Santé">Connecter</button></span></div>
@@ -849,12 +850,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   /* ---------- Démo (miroir du seed Supabase) ---------- */
   var DATA = {
     domains:[["Métabolique",100],["Cardiovasculaire",86],["Inflammatoire",94],["Hormonal",78],["Récupération",76]],
-    pilulier:[
-      {n:"Vitamine D3 + K2",dose:"1 unité",m:"Matin",done:true},
-      {n:"Oméga-3 TG concentré",dose:"1 unité",m:"Midi",done:false},
-      {n:"CoQ10 Ubiquinol",dose:"1 unité",m:"Midi",done:false,note:"non plafonné"},
-      {n:"Magnésium bisglycinate",dose:"1 unité",m:"Coucher",done:false}
-    ],
     wearables:[
       {k:"VFC",v:"68",u:" ms",d:"+6 vs baseline",ic:"heart"},
       {k:"FC repos",v:"52",u:" bpm",d:null,ic:"pulse"},
@@ -935,36 +930,52 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
 
   /* ---------- Render : Laboratoire ---------- */
-  function renderPilulier(){
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+  async function renderPilulier(){
+    await ensureAnon();
     var c=$("#pilList"); c.innerHTML="";
-    if(!DATA.pilulier.length){
+    if(!sb||!AUTH.user){$("#pilCount").textContent="0/0";return;}
+    var today=todayISO();
+    var itemsQ=await sb.from("pilulier_items").select("id,moment,units_per_day,note_fr,boutique_products(name_fr)").eq("user_id",AUTH.user.id).eq("active",true);
+    var compQ=await sb.from("pilulier_completions").select("pilulier_item_id").eq("user_id",AUTH.user.id).eq("taken_on",today);
+    var takenIds={};
+    (compQ.data||[]).forEach(function(r){takenIds[r.pilulier_item_id]=true;});
+    var items=(itemsQ.data||[]).map(function(row){
+      var product=row.boutique_products||{};
+      return {id:row.id,m:row.moment,n:product.name_fr||"Complément",dose:row.units_per_day+(row.units_per_day>1?" unités":" unité"),note:row.note_fr,done:!!takenIds[row.id]};
+    });
+    if(!items.length){
       c.innerHTML='<p class="muted" style="font-size:13px;padding:10px 2px">Pas de plan de prise actif ce mois-ci. Il apparaît ici dès qu\'un panier est généré.</p>';
       $("#pilCount").textContent="0/0";
       return;
     }
-    ["Matin","Midi","Soir","Coucher"].forEach(function(moment){
-      var rows=DATA.pilulier.filter(function(p){return p.m===moment;});
+    var momentLabels={matin:"Matin",midi:"Midi",soir:"Soir",coucher:"Coucher"};
+    ["matin","midi","soir","coucher"].forEach(function(moment){
+      var rows=items.filter(function(p){return p.m===moment;});
       if(!rows.length) return;
-      c.appendChild(el("div","pil-moment",'<i></i>'+moment));
+      c.appendChild(el("div","pil-moment",'<i></i>'+momentLabels[moment]));
       rows.forEach(function(p){
         var e=el("div","exo"+(p.done?" done":""),
           '<div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>'+
           '<span class="en">'+p.n+'</span>'+
           (p.note?'<span class="pil-note">'+p.note+'</span>':'')+
           '<span class="er">'+p.dose+'</span>');
-        e.addEventListener("click",function(){
-          p.done=!p.done;
-          e.classList.toggle("done");
-          updatePilCount();
+        e.addEventListener("click",async function(){
+          var wasDone=p.done;
+          p.done=!wasDone; e.classList.toggle("done"); updatePilCountFrom(items);
+          var res = wasDone
+            ? await sb.from("pilulier_completions").delete().eq("user_id",AUTH.user.id).eq("pilulier_item_id",p.id).eq("taken_on",today)
+            : await sb.from("pilulier_completions").insert({user_id:AUTH.user.id,pilulier_item_id:p.id,taken_on:today});
+          if(res.error){ p.done=wasDone; e.classList.toggle("done"); updatePilCountFrom(items); }
         });
         c.appendChild(e);
       });
     });
-    updatePilCount();
+    updatePilCountFrom(items);
   }
-  function updatePilCount(){
-    var done=DATA.pilulier.filter(function(p){return p.done;}).length;
-    $("#pilCount").textContent=done+"/"+DATA.pilulier.length;
+  function updatePilCountFrom(items){
+    var done=items.filter(function(p){return p.done;}).length;
+    $("#pilCount").textContent=done+"/"+items.length;
   }
   var DOMAIN_LABELS={metabolique:"Métabolique",cardiovasculaire:"Cardiovasculaire",inflammatoire:"Inflammatoire",hormonal:"Hormonal",recuperation:"Récupération"};
   var DOMAIN_ORDER=["metabolique","cardiovasculaire","inflammatoire","hormonal","recuperation"];
@@ -1028,11 +1039,17 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     await ensureAnon();
     if(!sb||!AUTH.user){$("#labScoreSection").style.display="none";$("#labEmptyCard").style.display="block";
       $("#labEmptyMsg").textContent="Connexion en cours…";return;}
-    var prof=await sb.from("profiles").select("display_name").eq("id",AUTH.user.id).maybeSingle();
+    var prof=await sb.from("profiles").select("display_name, subscription_tier").eq("id",AUTH.user.id).maybeSingle();
     var name=(prof.data&&prof.data.display_name&&prof.data.display_name.trim())||
       (AUTH.user.email?AUTH.user.email.split("@")[0]:"toi");
     name=name.charAt(0).toUpperCase()+name.slice(1);
     $("#greetName").textContent=name;
+    var initial=name.charAt(0).toUpperCase();
+    $("#avatarInitial").textContent=initial;
+    $("#profileAvatarBig").textContent=initial;
+    $("#profileName").textContent=name;
+    var TIER_LABELS={data:"Data",essentiel:"Essentiel",performance:"Performance",signature:"Signature"};
+    $("#profileTier").textContent=TIER_LABELS[(prof.data&&prof.data.subscription_tier)||"data"]||"Data";
 
     var prevQ=await sb.from("health_vitality_scores").select("score").eq("user_id",AUTH.user.id).order("computed_at",{ascending:false}).limit(1);
     var previousScore=(prevQ.data&&prevQ.data.length>0)?Number(prevQ.data[0].score):null;
@@ -1955,7 +1972,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
 
   var gMode="signup";
-  var gOnboard={sex:null,day:"",month:"",year:"",weight:"",height:"",activity:null,goal:null};
+  var gOnboard={firstName:"",sex:null,day:"",month:"",year:"",weight:"",height:"",activity:null,goal:null};
   var gStep=0;
   function gShow(id){["gAuthCard","gConfirmCard","gOnboardCard"].forEach(function(c){$("#"+c).style.display=(c===id)?"block":"none";});}
   function gErr(id,msg){var e=$("#"+id);if(msg){e.textContent=msg;e.style.display="block";}else{e.style.display="none";}}
@@ -2029,31 +2046,35 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     return opts.map(function(o){return '<button type="button" class="gpill" data-group="'+groupKey+'" data-val="'+o[0]+'">'+o[1]+'</button>';}).join("");
   }
   function renderOnboardStep(){
-    $("#gStepLabel").textContent="ÉTAPE "+(gStep+1)+" / 4";
+    $("#gStepLabel").textContent="ÉTAPE "+(gStep+1)+" / 5";
     $("#gStepBack").style.display=gStep>0?"block":"none";
     gErr("gOnboardErr",null);
     var body="";
     if(gStep===0){
+      body='<div class="geyebrow">Pour t\'accueillir correctement</div><h2>Comment tu t\'appelles ?</h2>'
+        +'<p class="ghelp">C\'est ce prénom qui s\'affichera sur ton écran d\'accueil.</p>'
+        +'<input id="gFirstName" placeholder="Ton prénom" autocomplete="given-name" value="'+gOnboard.firstName+'">';
+    }else if(gStep===1){
       body='<div class="geyebrow">Pour interpréter tes marqueurs</div><h2>Ton sexe biologique</h2>'
         +'<p class="ghelp">Certaines zones optimales (testostérone, HDL, ferritine…) diffèrent selon le sexe biologique.</p>'
         +'<div class="gpills">'+pillsHtml([["male","Homme"],["female","Femme"]],"sex")+'</div>';
-    }else if(gStep===1){
+    }else if(gStep===2){
       body='<div class="geyebrow">Pour le calcul de tes besoins</div><h2>Ta date de naissance</h2>'
         +'<div class="grow"><input id="gDay" placeholder="JJ" inputmode="numeric" maxlength="2" value="'+gOnboard.day+'">'
         +'<input id="gMonth" placeholder="MM" inputmode="numeric" maxlength="2" value="'+gOnboard.month+'">'
         +'<input id="gYear" placeholder="AAAA" inputmode="numeric" maxlength="4" value="'+gOnboard.year+'"></div>';
-    }else if(gStep===2){
+    }else if(gStep===3){
       body='<div class="geyebrow">Pour tes objectifs nutrition</div><h2>Poids, taille, activité</h2>'
         +'<div class="grow"><input id="gWeight" placeholder="Poids (kg)" inputmode="decimal" value="'+gOnboard.weight+'">'
         +'<input id="gHeight" placeholder="Taille (cm)" inputmode="decimal" value="'+gOnboard.height+'"></div>'
         +'<p class="ghelp" style="margin-top:10px">Niveau d\'activité</p><div class="gpills">'+pillsHtml(ACT_OPTS,"activity")+'</div>';
-    }else if(gStep===3){
+    }else if(gStep===4){
       body='<div class="geyebrow">Pour ta séance et ton panier</div><h2>Ton objectif principal</h2>'
         +'<div class="gpills">'+pillsHtml(GOAL_OPTS,"goal")+'</div>';
     }
     $("#gStepBody").innerHTML=body;
-    $("#gOnboardNext").textContent=gStep<3?"Continuer":"Terminer";
-    if(gStep===0||gStep===2||gStep===3){
+    $("#gOnboardNext").textContent=gStep<4?"Continuer":"Terminer";
+    if(gStep===1||gStep===3||gStep===4){
       $$("#gStepBody .gpill").forEach(function(btn){
         var g=btn.dataset.group;
         if(gOnboard[g]===btn.dataset.val)btn.classList.add("sel");
@@ -2066,22 +2087,24 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
   $("#gStepBack").addEventListener("click",function(){if(gStep>0){gStep--;renderOnboardStep();}});
   $("#gOnboardNext").addEventListener("click",async function(){
-    if(gStep===1){gOnboard.day=$("#gDay").value.trim();gOnboard.month=$("#gMonth").value.trim();gOnboard.year=$("#gYear").value.trim();}
-    if(gStep===2){gOnboard.weight=$("#gWeight").value.trim();gOnboard.height=$("#gHeight").value.trim();}
-    if(gStep===0&&!gOnboard.sex)return gErr("gOnboardErr","Choisis une option pour continuer.");
-    if(gStep===1){
+    if(gStep===0){gOnboard.firstName=$("#gFirstName").value.trim();}
+    if(gStep===2){gOnboard.day=$("#gDay").value.trim();gOnboard.month=$("#gMonth").value.trim();gOnboard.year=$("#gYear").value.trim();}
+    if(gStep===3){gOnboard.weight=$("#gWeight").value.trim();gOnboard.height=$("#gHeight").value.trim();}
+    if(gStep===0&&gOnboard.firstName.length<1)return gErr("gOnboardErr","Dis-nous comment t'appeler.");
+    if(gStep===1&&!gOnboard.sex)return gErr("gOnboardErr","Choisis une option pour continuer.");
+    if(gStep===2){
       var d=parseInt(gOnboard.day,10),m=parseInt(gOnboard.month,10),y=parseInt(gOnboard.year,10);
       if(!d||!m||!y||d<1||d>31||m<1||m>12||y<1920||y>(new Date().getFullYear()-13))return gErr("gOnboardErr","Date de naissance invalide.");
     }
-    if(gStep===2){
+    if(gStep===3){
       var w=parseFloat(gOnboard.weight.replace(",",".")),h=parseFloat(gOnboard.height.replace(",","."));
       if(!w||w<=20||w>=400)return gErr("gOnboardErr","Poids invalide (kg).");
       if(!h||h<=80||h>=250)return gErr("gOnboardErr","Taille invalide (cm).");
       if(!gOnboard.activity)return gErr("gOnboardErr","Choisis un niveau d'activité.");
     }
-    if(gStep===3&&!gOnboard.goal)return gErr("gOnboardErr","Choisis un objectif pour continuer.");
+    if(gStep===4&&!gOnboard.goal)return gErr("gOnboardErr","Choisis un objectif pour continuer.");
     gErr("gOnboardErr",null);
-    if(gStep<3){gStep++;renderOnboardStep();return;}
+    if(gStep<4){gStep++;renderOnboardStep();return;}
     $("#gOnboardNext").disabled=true;
     try{
       var dob=gOnboard.year.padStart(4,"0")+"-"+gOnboard.month.padStart(2,"0")+"-"+gOnboard.day.padStart(2,"0");
@@ -2091,7 +2114,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       var sess=await sb.auth.getSession();
       var uid=sess.data.session&&sess.data.session.user.id;
       if(!uid){gErr("gOnboardErr","Session perdue — recharge la page.");return;}
-      var up=await sb.from("profiles").update({sex:gOnboard.sex,date_of_birth:dob,weight_kg:weight,height_cm:height,
+      var up=await sb.from("profiles").update({display_name:gOnboard.firstName,sex:gOnboard.sex,date_of_birth:dob,weight_kg:weight,height_cm:height,
         activity_level:gOnboard.activity,sport_goal:gOnboard.goal,sport_goal_set_at:new Date().toISOString(),onboarding_done:true}).eq("id",uid);
       if(up.error){gErr("gOnboardErr",up.error.message);return;}
       var ug=await sb.from("nutrition_goals").upsert({user_id:uid,kcal:targets.kcal,protein_g:targets.protein_g,
