@@ -286,6 +286,16 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .meal .mk2{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .est{font-size:10px;font-weight:600;letter-spacing:.03em;color:var(--attention);border:1px solid color-mix(in srgb,var(--attention) 30%,transparent);
   padding:2px 6px;border-radius:99px;margin-left:6px}
+.meal .mdel{width:26px;height:26px;border-radius:8px;border:1px solid var(--card-border);background:var(--card-2);
+  color:var(--text-3);font-size:13px;line-height:1;display:grid;place-items:center;cursor:pointer;flex:none;padding:0}
+.meal .mdel:hover{color:var(--attention);border-color:color-mix(in srgb,var(--attention) 40%,transparent)}
+.frQty{display:flex;align-items:center;gap:8px;padding:11px 2px;border-bottom:1px solid var(--hairline)}
+.frQty b{font-size:13.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frQty input{width:58px;padding:7px 8px;border-radius:10px;border:1px solid var(--card-border);
+  background:var(--accent-soft);color:var(--text-1);font-size:13.5px;text-align:right}
+.frQtyConfirm{font-size:12.5px;font-weight:700;color:#221d12;background:var(--accent);border:none;
+  border-radius:10px;padding:8px 11px;cursor:pointer;white-space:nowrap;flex:none}
+.frQtyCancel{font-size:14px;color:var(--text-3);background:none;border:none;cursor:pointer;padding:6px;flex:none}
 
 /* ---------- Boutique ---------- */
 .basket-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1382,11 +1392,35 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       var meta=(f.brand?f.brand+' · ':'')+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
       var e=el("div","foodResultRow",
         '<div class="frt"><b>'+f.name+'<span class="foodTag">'+tag+'</span></b>'+
-        '<span>'+meta+'</span></div><button class="frAdd">+ '+portion+' g</button>');
-      e.querySelector(".frAdd").addEventListener("click",function(){addRealFood(f,portion,resultsId,inputId);});
+        '<span>'+meta+'</span></div><button class="frAdd">Choisir</button>');
+      e.querySelector(".frAdd").addEventListener("click",function(){showQtyPicker(e,f,portion,resultsId,inputId);});
       c.appendChild(e);
     });
     c.appendChild(el("div","foodResultRow",'<div class="frt"><span style="font-size:10.5px;color:var(--text-3)">Ciqual (Anses) pour les aliments génériques · Open Food Facts pour les produits du commerce, recherché en direct parmi plusieurs millions de fiches</span></div>'));
+  }
+  /* Remplace le bouton d'ajout par une case "poids exact mangé" (au lieu d'une portion fixe de 100 g),
+     confirmée par un bouton Ajouter — même principe partout (recherche, scan). */
+  function showQtyPicker(rowEl,f,defaultPortion,resultsId,inputId,onConfirmed){
+    var btnArea=rowEl.querySelector(".frAdd");
+    if(!btnArea) return;
+    var wrap=el("div","frQty",
+      '<b>'+f.name+'</b><input type="number" min="1" step="1" value="'+defaultPortion+'">'+
+      '<span style="font-size:11.5px;color:var(--text-3);flex:none">g</span>'+
+      '<button class="frQtyConfirm">Ajouter</button><button class="frQtyCancel">✕</button>');
+    rowEl.parentNode.replaceChild(wrap, rowEl);
+    var input=wrap.querySelector("input");
+    setTimeout(function(){input.focus();input.select();},10);
+    function confirm(){
+      var p=parseFloat((input.value||"").replace(",","."));
+      var grams=(isFinite(p)&&p>0)?p:defaultPortion;
+      addRealFood(f,grams,resultsId,inputId);
+      if(onConfirmed) onConfirmed();
+    }
+    wrap.querySelector(".frQtyConfirm").addEventListener("click",confirm);
+    input.addEventListener("keydown",function(ev){ if(ev.key==="Enter") confirm(); });
+    wrap.querySelector(".frQtyCancel").addEventListener("click",function(){
+      wrap.parentNode.replaceChild(rowEl, wrap);
+    });
   }
   async function addRealFood(f,portion,resultsId,inputId){
     var r=portion/100;
@@ -1488,8 +1522,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     var meta=(f.brand?f.brand+' · ':'')+Math.round(f.kcal_100g)+' kcal · P '+f.protein_100g+' · G '+f.carb_100g+' · L '+f.fat_100g+' /100 g';
     var row=el("div","foodResultRow",
       '<div class="frt"><b>'+f.name+'<span class="foodTag">Commerce</span></b><span>'+meta+' · code '+code+'</span></div>'+
-      '<button class="frAdd">+ '+portion+' g</button>');
-    row.querySelector(".frAdd").addEventListener("click",function(){ addRealFood(f,portion,null,null); lastScanned=null; });
+      '<button class="frAdd">Choisir</button>');
+    row.querySelector(".frAdd").addEventListener("click",function(){ showQtyPicker(row,f,portion,null,null,function(){lastScanned=null;}); });
     box.appendChild(row);
     $("#scanStatus").textContent="Produit trouvé — vérifie et ajoute, ou continue de scanner.";
   }
@@ -1504,12 +1538,12 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       map.forEach(function(v,i){ if(v) DATA.macros[i].t=Number(v); });
     }
     var q=await sb.from("nutrition_entries")
-      .select("name,brand,portion_g,kcal,protein_g,carb_g,fat_g,fiber_g,is_estimate,source,logged_at")
+      .select("id,name,brand,portion_g,kcal,protein_g,carb_g,fat_g,fiber_g,is_estimate,source,logged_at")
       .gte("logged_at",start.toISOString()).order("logged_at",{ascending:true});
     if(q.error) return false;
     DATA.meals=q.data.map(function(x){
       var icons={photo:"📷",barcode:"🏷️",search:"🥗",manual:"✍️"};
-      return {n:x.name,s:(x.brand?x.brand+" · ":"")+(x.portion_g?x.portion_g+" g":""),k:String(x.kcal||0),e:!!x.is_estimate,ic:icons[x.source]||"🥗"};
+      return {id:x.id,n:x.name,s:(x.brand?x.brand+" · ":"")+(x.portion_g?x.portion_g+" g":""),k:String(x.kcal||0),e:!!x.is_estimate,ic:icons[x.source]||"🥗"};
     });
     kcalTotal=q.data.reduce(function(a,x){return a+(Number(x.kcal)||0);},0);
     var sums=[0,0,0,0];
@@ -1557,9 +1591,31 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     }
   }
   function renderMeals(){var c=$("#mealList");c.innerHTML="";
+    if(!DATA.meals.length){
+      c.appendChild(el("div","foodResultRow",'<div class="frt"><span style="color:var(--text-3)">Aucun aliment ajouté aujourd\'hui.</span></div>'));
+      return;
+    }
     DATA.meals.forEach(function(m){
-      c.appendChild(el("div","meal",'<div class="mi">'+m.ic+'</div><div class="mt2"><b>'+m.n+(m.e?'<span class="est">estimation</span>':'')+'</b><span>'+m.s+'</span></div><div class="mk2">'+m.k+'</div>'));
+      var row=el("div","meal",'<div class="mi">'+m.ic+'</div><div class="mt2"><b>'+m.n+(m.e?'<span class="est">estimation</span>':'')+'</b><span>'+m.s+'</span></div><div class="mk2">'+m.k+'</div>');
+      if(m.id){
+        var del=el("button","mdel","✕");
+        del.title="Supprimer";
+        del.addEventListener("click",function(){ confirmDeleteMeal(m.id,m.n); });
+        row.appendChild(del);
+      }
+      c.appendChild(row);
     });}
+  function confirmDeleteMeal(id,name){
+    if(!confirm("Supprimer « "+name+" » du journal ?")) return;
+    deleteEntry(id);
+  }
+  async function deleteEntry(id){
+    if(!sb||!AUTH.ready) return;
+    var res=await sb.from("nutrition_entries").delete().eq("id",id);
+    if(res.error){ toast("Erreur : "+res.error.message); return; }
+    await loadTodayNutrition();
+    toast("Aliment supprimé — journal recalculé");
+  }
   var kcalTotal=0;
 
   /* ---------- Render : Santé ---------- */
