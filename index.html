@@ -806,7 +806,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 <div class="toast" id="toast"></div>
 
-<script src="vendor/html5-qrcode.min.js"></script>
+<script src="vendor/barcode-detector.polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   /* ============================================================
@@ -1467,7 +1467,19 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   }
 
   /* ---------- Panneau + : bascule entre options / recherche / scanner ---------- */
-  var qrScanner=null, scannerRunning=false;
+  // Détection de code-barre : window.BarcodeDetector, natif sur Chrome/Edge/Android,
+  // sinon installé par notre polyfill (vendor/barcode-detector.polyfill.js, moteur
+  // WASM zxing-cpp — bien plus fiable pour les codes-barres 1D que l'ancienne lib
+  // JS pure utilisée avant). Le wasm est auto-hébergé (vendor/zxing_reader.wasm),
+  // pas de CDN externe.
+  if(typeof BarcodeDetectionAPI!=="undefined" && BarcodeDetectionAPI.prepareZXingModule){
+    try{
+      BarcodeDetectionAPI.prepareZXingModule({
+        overrides: { locateFile: function(path, prefix){ return path.endsWith(".wasm") ? "vendor/"+path : prefix+path; } }
+      });
+    }catch(e){ /* pas bloquant, detect() retentera son propre chargement */ }
+  }
+  var scanState = { stream:null, videoEl:null, timer:null, running:false, detector:null };
   function showAddView(view){
     $("#addOptions").style.display = view==="options" ? "" : "none";
     $("#addSearchView").style.display = view==="search" ? "" : "none";
@@ -1475,49 +1487,54 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
     if(view!=="barcode") stopScanner();
     if(view==="search") setTimeout(function(){ $("#sheetFoodSearch").focus(); },150);
   }
-  function startScanner(){
-    if(scannerRunning) return;
-    if(typeof Html5Qrcode==="undefined"){
+  async function startScanner(){
+    if(scanState.running) return;
+    var BD = window.BarcodeDetector;
+    if(!BD){
       $("#scanStatus").textContent="Bibliothèque caméra indisponible — utilise la saisie manuelle ci-dessous.";
       return;
     }
     $("#scanStatus").textContent="Ouverture de la caméra…";
     try{
-      // formatsToSupport doit être passé ICI (au constructeur), pas à start() —
-      // c'était l'erreur : la lib l'ignorait silencieusement et retombait sur
-      // son réglage par défaut, moins précis pour les codes-barres 1D.
-      var formats = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-                     Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E];
-      qrScanner = new Html5Qrcode("scanReader", { formatsToSupport: formats, verbose: false });
-      qrScanner.start(
-        {facingMode:"environment"},
-        {
-          // fps=2 : c'est la valeur PAR DÉFAUT de la lib elle-même (pas 10, notre
-          // erreur précédente). Un décodage de code-barre 1D est plus lourd qu'un
-          // QR code ; à fps trop élevé chaque frame est interrompue avant d'avoir
-          // fini son analyse -> zéro détection, silencieusement, même caméra ouverte.
-          fps:2,
-          // Pas de qrbox : toute la zone visible sert de zone de scan (au lieu
-          // d'une zone réduite qui pouvait ne pas correspondre à la zone réellement
-          // cadrée par l'utilisateur).
-          videoConstraints:{ facingMode:"environment", width:{ideal:1280}, height:{ideal:720} }
-        },
-        function(decoded){ onBarcodeDetected(decoded); },
-        function(){ /* image sans code détecté sur cette frame — normal, on continue */ }
-      ).then(function(){
-        scannerRunning=true;
-        $("#scanStatus").textContent="Vise le code-barre, bien à plat, à ~15 cm de la caméra.";
-      }).catch(function(err){
-        $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
+      var stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:"environment", width:{ideal:1280}, height:{ideal:720} }
       });
+      scanState.stream = stream;
+      var video = document.createElement("video");
+      video.setAttribute("playsinline","");
+      video.muted = true;
+      video.autoplay = true;
+      video.style.display = "block";
+      video.style.width = "100%";
+      video.style.borderRadius = "16px";
+      var container = $("#scanReader");
+      container.innerHTML = "";
+      container.appendChild(video);
+      video.srcObject = stream;
+      try{ await video.play(); }catch(e){}
+      scanState.videoEl = video;
+      scanState.detector = new BD({ formats:["ean_13","ean_8","upc_a","upc_e"] });
+      scanState.running = true;
+      $("#scanStatus").textContent="Vise le code-barre, bien à plat, à ~15 cm de la caméra.";
+      scanState.timer = setInterval(async function(){
+        if(!scanState.running || !scanState.videoEl || scanState.videoEl.readyState < 2) return;
+        try{
+          var codes = await scanState.detector.detect(scanState.videoEl);
+          if(codes && codes.length) onBarcodeDetected(codes[0].rawValue);
+        }catch(e){ /* pas de code sur cette image — normal, on continue */ }
+      }, 350);
     }catch(err){
-      $("#scanStatus").textContent="Caméra indisponible ("+String(err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
+      $("#scanStatus").textContent="Caméra indisponible ("+String((err&&err.message)||err).slice(0,80)+") — utilise la saisie manuelle ci-dessous.";
+      stopScanner();
     }
   }
   function stopScanner(){
-    if(qrScanner && scannerRunning){
-      qrScanner.stop().catch(function(){}).finally(function(){ qrScanner=null; scannerRunning=false; });
-    } else { qrScanner=null; scannerRunning=false; }
+    scanState.running = false;
+    if(scanState.timer){ clearInterval(scanState.timer); scanState.timer=null; }
+    if(scanState.stream){ scanState.stream.getTracks().forEach(function(t){ t.stop(); }); scanState.stream=null; }
+    if(scanState.videoEl){ scanState.videoEl.srcObject=null; scanState.videoEl=null; }
+    var container = $("#scanReader");
+    if(container) container.innerHTML="";
   }
   var lastScanned=null;
   async function onBarcodeDetected(code){
